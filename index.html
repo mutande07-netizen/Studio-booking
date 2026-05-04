@@ -13,6 +13,7 @@ body{background:#f7f5f0;font-family:'Helvetica Neue',Helvetica,sans-serif}
 select,input{color:#1a1612}
 select option{background:#fff}
 button:hover{opacity:0.85}
+input[type="time"]{-webkit-appearance:none;appearance:none}
 </style>
 </head>
 <body>
@@ -22,13 +23,14 @@ const{useState,useMemo,useEffect}=React;
 const DEFAULT_COACHES=["Jessica","AJ","Kai","Wendy","Joy91","Amy","YY","NoNo(Jackie)","Roger","Ray","Calvin","Min","小六Six","Rita","Emma","Emily","2K","Ting","Tim","志嘉Ethan","Kevin","Jojo","Taidy","Myriam","Leann","Chang","柯","Vick","Lewin綸","卿哥","Lai小賴","Sherry","阿鳥/苡慈","Bailey(杯裡)","詠樺","Gary","丁丹","Mark","Linda","Billy","雲翔","GREEN","ERIC","Elvis","又玄","John","Rena","Mia","Joe","單次場租"];
 const ADMIN_PASSWORD="fp16888";
 const SHEET_URL="https://script.google.com/macros/s/AKfycbznmXuD5S9WQ8R2Tpb_J0Wxy62FzzAiJXmihQ0v-7GX14C_vfsfukUnmqbUsv_zJ-mv/exec";
-const todayStr=()=>new Date().toISOString().split("T")[0];
+const todayStr=()=>{const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`};
 const thisMonth=()=>{const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`};
 const fmt=d=>{if(!d||typeof d!=="string"||!d.includes("-"))return d||"";const p=d.split("-");if(p.length<3)return d;return`${p[0]}/${p[1]}/${p[2]}`};
 const mk=d=>{if(!d||typeof d!=="string")return"";const p=d.split("-");if(p.length<2)return"";return`${p[0]}-${p[1]}`};
 const ml=m=>{if(!m||typeof m!=="string"||!m.includes("-"))return m||"";const p=m.split("-");return`${p[0]}年${parseInt(p[1])}月`};
 const calcHours=(start,end)=>{if(!start||!end||typeof start!=="string"||typeof end!=="string")return 0;const sp=start.split(":");const ep=end.split(":");if(sp.length<2||ep.length<2)return 0;const sh=parseInt(sp[0]),sm=parseInt(sp[1]),eh=parseInt(ep[0]),em=parseInt(ep[1]);if(isNaN(sh)||isNaN(eh))return 0;return((eh*60+em)-(sh*60+sm))/60};
-const addOneHour=t=>{const[h,m]=t.split(":").map(Number);const nh=h+1;return nh>=24?"23:59":`${String(nh).padStart(2,"0")}:${String(m).padStart(2,"0")}`};
+const addOneHour=t=>{const[h,m]=t.split(":").map(Number);const nh=h+1;return nh>=24?"23:00":`${String(nh).padStart(2,"0")}:${String(m).padStart(2,"0")}`};
+const nowTime=()=>{const n=new Date();return`${String(n.getHours()).padStart(2,"0")}:00`};
 const expandBookings=(coach,date,start,end,type)=>{const slots=[];let[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);while(sh*60+sm<eh*60+em){const ns=sh*60+sm+60<=eh*60+em?sh*60+sm+60:eh*60+em;const s=`${String(sh).padStart(2,"0")}:${String(sm).padStart(2,"0")}`;const e=`${String(Math.floor(ns/60)).padStart(2,"0")}:${String(ns%60).padStart(2,"0")}`;slots.push({id:`${Date.now()}-${s}`,coach,date,start:s,end:e,type,status:"active",createdAt:new Date().toISOString()});sh=Math.floor(ns/60);sm=ns%60}return slots};
 const BOOKING_KEY="studio_bookings_v1";
 const COACH_KEY="studio_coaches_v1";
@@ -47,7 +49,11 @@ const inp={width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRad
 const btn=(c="accent",s="md")=>({background:c==="accent"?C.accent:c==="ghost"?"transparent":c==="red"?C.red:C.green,color:c==="ghost"?C.muted:"#fff",border:c==="ghost"?`1px solid ${C.border}`:"none",borderRadius:8,padding:s==="sm"?"6px 12px":s==="lg"?"14px 24px":"10px 16px",fontSize:s==="sm"?12:s==="lg"?15:13,fontWeight:700,fontFamily:B,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,transition:"opacity 0.15s"});
 function Badge({type,status}){const can=status==="cancelled",is1=type==="一對一";return<span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:4,background:can?C.redBg:is1?C.greenBg:C.purpleBg,color:can?C.red:is1?C.green:C.purple,border:`1px solid ${can?C.redBdr:is1?C.greenBdr:C.purpleBdr}`,textDecoration:can?"line-through":"none",whiteSpace:"nowrap"}}>{can?"已取消":type}</span>}
 function CoachPage({bookings,setBookings,coaches}){
-const[coach,setCoach]=useState("");const[date,setDate]=useState(todayStr());const[start,setStart]=useState("14:00");const[end,setEnd]=useState("15:00");const[type,setType]=useState("1on1");const[ok,setOk]=useState(false);const[err,setErr]=useState("");
+const[coach,setCoach]=useState("");
+const[date,setDate]=useState(todayStr());
+const[start,setStart]=useState(nowTime());
+const[end,setEnd]=useState(addOneHour(nowTime()));
+const[type,setType]=useState("1on1");const[ok,setOk]=useState(false);const[err,setErr]=useState("");
 const mine=useMemo(()=>bookings.filter(b=>b.coach===coach&&b.status!=="cancelled"&&b.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,coach]);
 const handleStartChange=e=>{const s=e.target.value;setStart(s);setEnd(addOneHour(s))};
 const submit=async()=>{
@@ -60,7 +66,7 @@ const n=[...bookings,...slots];
 setBookings(n);saveBookings(n);
 for(const slot of slots){await sync({action:"add",...slot});}
 setOk(true);setTimeout(()=>setOk(false),3000);
-setStart("14:00");setEnd("15:00");setType("1on1");
+setStart(nowTime());setEnd(addOneHour(nowTime()));setType("1on1");
 };
 const cancel=async id=>{const n=bookings.map(b=>b.id===id?{...b,status:"cancelled"}:b);setBookings(n);saveBookings(n);await sync({action:"cancel",...n.find(b=>b.id===id)})};
 return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
@@ -75,8 +81,18 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div><label style={lbl}>我是</label><select value={coach} onChange={e=>setCoach(e.target.value)} style={inp}><option value="">— 請選擇您的名字 —</option>{coaches.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
 <div><label style={lbl}>上課日期</label><input type="date" value={date} min={todayStr()} onChange={e=>setDate(e.target.value)} style={inp}/></div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-<div><label style={lbl}>開始時間</label><input type="time" value={start} onChange={handleStartChange} style={inp}/></div>
-<div><label style={lbl}>結束時間</label><input type="time" value={end} onChange={e=>setEnd(e.target.value)} style={inp}/></div>
+<div>
+<label style={lbl}>開始時間</label>
+<select value={start} onChange={e=>{setStart(e.target.value);setEnd(addOneHour(e.target.value))}} style={inp}>
+{Array.from({length:24},(_,i)=>`${String(i).padStart(2,"0")}:00`).map(t=><option key={t} value={t}>{t}</option>)}
+</select>
+</div>
+<div>
+<label style={lbl}>結束時間</label>
+<select value={end} onChange={e=>setEnd(e.target.value)} style={inp}>
+{Array.from({length:24},(_,i)=>`${String(i).padStart(2,"0")}:00`).map(t=><option key={t} value={t}>{t}</option>)}
+</select>
+</div>
 </div>
 <div style={{background:C.blueBg,border:`1px solid ${C.blueBdr}`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.blue}}>
 💡 系統會自動將預約拆成每小時一筆，方便個別取消
