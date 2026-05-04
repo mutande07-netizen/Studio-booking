@@ -26,6 +26,7 @@ const todayStr=()=>new Date().toISOString().split("T")[0];
 const fmt=d=>{if(!d)return"";const[y,m,dd]=d.split("-");return`${y}/${m}/${dd}`};
 const mk=d=>d?.slice(0,7)??"";
 const calcHours=(start,end)=>{const[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);return((eh*60+em)-(sh*60+sm))/60};
+const addOneHour=t=>{const[h,m]=t.split(":").map(Number);const nh=h+1;return nh>=24?"23:59":`${String(nh).padStart(2,"0")}:${String(m).padStart(2,"0")}`};
 const BOOKING_KEY="studio_bookings_v1";
 const COACH_KEY="studio_coaches_v1";
 const loadBookings=()=>{try{return JSON.parse(localStorage.getItem(BOOKING_KEY)||"[]")}catch{return[]}};
@@ -44,6 +45,7 @@ function Badge({type,status}){const can=status==="cancelled",is1=type==="一對�
 function CoachPage({bookings,setBookings,coaches}){
 const[coach,setCoach]=useState("");const[date,setDate]=useState(todayStr());const[start,setStart]=useState("14:00");const[end,setEnd]=useState("15:00");const[type,setType]=useState("1on1");const[ok,setOk]=useState(false);const[err,setErr]=useState("");
 const mine=useMemo(()=>bookings.filter(b=>b.coach===coach&&b.status!=="cancelled").sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,coach]);
+const handleStartChange=e=>{const s=e.target.value;setStart(s);setEnd(addOneHour(s))};
 const submit=async()=>{setErr("");if(!coach)return setErr("請選擇您的名字");if(!date)return setErr("請選擇日期");if(start>=end)return setErr("結束時間必須晚於開始時間");const e={id:`${Date.now()}`,coach,date,start,end,type:type==="1on1"?"一對一":"一對二",status:"active",createdAt:new Date().toISOString()};const n=[...bookings,e];setBookings(n);saveBookings(n);await sync({action:"add",...e});setOk(true);setTimeout(()=>setOk(false),3000);setStart("14:00");setEnd("15:00");setType("1on1")};
 const cancel=async id=>{const n=bookings.map(b=>b.id===id?{...b,status:"cancelled"}:b);setBookings(n);saveBookings(n);await sync({action:"cancel",...n.find(b=>b.id===id)})};
 return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
@@ -58,7 +60,7 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div><label style={lbl}>我是</label><select value={coach} onChange={e=>setCoach(e.target.value)} style={inp}><option value="">— 請選擇您的名字 —</option>{coaches.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
 <div><label style={lbl}>上課日期</label><input type="date" value={date} min={todayStr()} onChange={e=>setDate(e.target.value)} style={inp}/></div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-<div><label style={lbl}>開始時間</label><input type="time" value={start} onChange={e=>setStart(e.target.value)} style={inp}/></div>
+<div><label style={lbl}>開始時間</label><input type="time" value={start} onChange={handleStartChange} style={inp}/></div>
 <div><label style={lbl}>結束時間</label><input type="time" value={end} onChange={e=>setEnd(e.target.value)} style={inp}/></div>
 </div>
 <div><label style={lbl}>上課模式</label>
@@ -102,7 +104,7 @@ const[newCoach,setNewCoach]=useState("");const[addErr,setAddErr]=useState("");
 const months=useMemo(()=>[...new Set(bookings.map(b=>mk(b.date)))].sort().reverse(),[bookings]);
 const filtered=useMemo(()=>bookings.filter(b=>mk(b.date)===vm).filter(b=>fc==="all"||b.coach===fc).filter(b=>fs==="all"||b.status===fs).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,vm,fc,fs]);
 const stats=useMemo(()=>{const a=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const m={};for(const b of a){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]={total:0,"一對一":0,"一對二":0};m[b.coach].total+=h;m[b.coach]["一對一"]+=b.type==="一對一"?h:0;m[b.coach]["一對二"]+=b.type==="一對二"?h:0}return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)},[bookings,vm]);
-const ta=filtered.filter(b=>b.status!=="cancelled").length;
+const ta=filtered.filter(b=>b.status!=="cancelled").reduce((acc,b)=>acc+calcHours(b.start,b.end),0).toFixed(1);
 const tc=filtered.filter(b=>b.status==="cancelled").length;
 const ml=m=>{const[y,mo]=m.split("-");return`${y}年${parseInt(mo)}月`};
 const hardDelete=id=>{if(!window.confirm("確定要永久刪除？"))return;const n=bookings.filter(b=>b.id!==id);setBookings(n);saveBookings(n)};
@@ -121,7 +123,7 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 {tab==="stats"&&<>
 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{months.length===0?<div style={{fontSize:13,color:C.muted}}>尚無任何紀錄</div>:months.map(m=><button key={m} onClick={()=>setVm(m)} style={{...btn(vm===m?"accent":"ghost","sm"),borderColor:vm===m?C.accent:C.border}}>{ml(m)}</button>)}</div>
 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-{[{label:"有效時數",value:filtered.filter(b=>b.status!=="cancelled").reduce((acc,b)=>acc+calcHours(b.start,b.end),0).toFixed(1),color:C.green,bg:C.greenBg},{label:"取消次數",value:tc,color:C.red,bg:C.redBg},{label:"教練人數",value:stats.length,color:C.blue,bg:C.blueBg}].map(({label,value,color,bg})=><div key={label} style={{...card,background:bg,padding:"16px 20px",border:"none",textAlign:"center"}}><div style={{fontSize:28,fontWeight:700,color}}>{value}</div><div style={{fontSize:11,color,opacity:0.8,marginTop:2}}>{label}</div></div>)}
+{[{label:"有效時數",value:ta,color:C.green,bg:C.greenBg},{label:"取消次數",value:tc,color:C.red,bg:C.redBg},{label:"教練人數",value:stats.length,color:C.blue,bg:C.blueBg}].map(({label,value,color,bg})=><div key={label} style={{...card,background:bg,padding:"16px 20px",border:"none",textAlign:"center"}}><div style={{fontSize:28,fontWeight:700,color}}>{value}</div><div style={{fontSize:11,color,opacity:0.8,marginTop:2}}>{label}</div></div>)}
 </div>
 {stats.length>0&&<div style={card}><h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:16}}>教練時數統計</h2>
 <div style={{display:"flex",flexDirection:"column",gap:8}}>
