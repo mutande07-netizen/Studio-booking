@@ -45,12 +45,45 @@ const lbl={display:"block",fontSize:11,fontWeight:700,letterSpacing:"0.1em",text
 const inp={width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,padding:"10px 12px",fontFamily:B,fontSize:14,outline:"none",boxSizing:"border-box"};
 const btn=(c="accent",s="md")=>({background:c==="accent"?C.accent:c==="ghost"?"transparent":c==="red"?C.red:C.green,color:c==="ghost"?C.muted:"#fff",border:c==="ghost"?`1px solid ${C.border}`:"none",borderRadius:8,padding:s==="sm"?"6px 12px":s==="lg"?"14px 24px":"10px 16px",fontSize:s==="sm"?12:s==="lg"?15:13,fontWeight:700,fontFamily:B,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,transition:"opacity 0.15s"});
 function Badge({type,status}){const can=status==="cancelled",is1=type==="一對一";return<span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:4,background:can?C.redBg:is1?C.greenBg:C.purpleBg,color:can?C.red:is1?C.green:C.purple,border:`1px solid ${can?C.redBdr:is1?C.greenBdr:C.purpleBdr}`,textDecoration:can?"line-through":"none",whiteSpace:"nowrap"}}>{can?"已取消":type}</span>}
+
 function CoachPage({bookings,setBookings,coaches}){
 const[coach,setCoach]=useState("");const[date,setDate]=useState(todayStr());const[start,setStart]=useState("14:00");const[end,setEnd]=useState("15:00");const[type,setType]=useState("1on1");const[ok,setOk]=useState(false);const[err,setErr]=useState("");
-const mine=useMemo(()=>bookings.filter(b=>b.coach===coach&&b.status!=="cancelled").sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,coach]);
+
+// 核心修改：只顯示尚未結束的預約
+const mine = useMemo(() => {
+  const now = new Date();
+  return bookings.filter(b => {
+    if (b.coach !== coach || b.status === "cancelled") return false;
+    const bookingEndTime = new Date(`${b.date}T${b.end}:00`);
+    return bookingEndTime > now; // 只保留未來
+  }).sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
+}, [bookings, coach]);
+
 const handleStartChange=e=>{const s=e.target.value;setStart(s);setEnd(addOneHour(s))};
-const submit=async()=>{setErr("");if(!coach)return setErr("請選擇您的名字");if(!date)return setErr("請選擇日期");if(start>=end)return setErr("結束時間必須晚於開始時間");const e={id:`${Date.now()}`,coach,date,start,end,type:type==="1on1"?"一對一":"一對二",status:"active",createdAt:new Date().toISOString()};const n=[...bookings,e];setBookings(n);saveBookings(n);await sync({action:"add",...e});setOk(true);setTimeout(()=>setOk(false),3000);setStart("14:00");setEnd("15:00");setType("1on1")};
-const cancel=async id=>{const n=bookings.map(b=>b.id===id?{...b,status:"cancelled"}:b);setBookings(n);saveBookings(n);await sync({action:"cancel",...n.find(b=>b.id===id)})};
+
+const submit=async()=>{
+  setErr("");
+  if(!coach)return setErr("請選擇您的名字");
+  if(!date)return setErr("請選擇日期");
+  if(start>=end)return setErr("結束時間必須晚於開始時間");
+  const e={id:`${Date.now()}`,coach,date,start,end,type:type==="1on1"?"一對一":"一對二",status:"active",createdAt:new Date().toISOString()};
+  const n=[...bookings,e];
+  setBookings(n);
+  saveBookings(n);
+  await sync({action:"add",...e});
+  setOk(true);
+  setTimeout(()=>setOk(false),3000);
+  setStart("14:00");setEnd("15:00");setType("1on1")
+};
+
+const cancel=async id=>{
+  if(!window.confirm("確定要取消這筆預約嗎？")) return;
+  const n=bookings.map(b=>b.id===id?{...b,status:"cancelled"}:b);
+  setBookings(n);
+  saveBookings(n);
+  await sync({action:"cancel",...bookings.find(b=>b.id===id)})
+};
+
 return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
 <div><h1 style={{fontFamily:H,fontSize:22,fontWeight:400,color:C.text}}>FourPlus Studio 預約</h1><p style={{fontSize:12,color:C.muted,marginTop:4}}>請登記您的上課時間</p></div>
@@ -83,6 +116,7 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 </div>)}
 </div></div>}
 </div></div>}
+
 function AdminLogin({onLogin}){
 const[pw,setPw]=useState("");const[show,setShow]=useState(false);const[err,setErr]=useState(false);
 const go=()=>{if(pw.trim()===ADMIN_PASSWORD)onLogin();else{setErr(true);setTimeout(()=>setErr(false),1500)}};
