@@ -13,7 +13,6 @@ body{background:#f7f5f0;font-family:'Helvetica Neue',Helvetica,sans-serif}
 select,input{color:#1a1612}
 select option{background:#fff}
 button:hover{opacity:0.85}
-input[type="time"]{-webkit-appearance:none;appearance:none}
 </style>
 </head>
 <body>
@@ -32,14 +31,11 @@ const calcHours=(start,end)=>{if(!start||!end||typeof start!=="string"||typeof e
 const addOneHour=t=>{const[h,m]=t.split(":").map(Number);const nh=h+1;return nh>=24?"23:00":`${String(nh).padStart(2,"0")}:${String(m).padStart(2,"0")}`};
 const nowTime=()=>{const n=new Date();return`${String(n.getHours()).padStart(2,"0")}:00`};
 const expandBookings=(coach,date,start,end,type)=>{const slots=[];let[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);while(sh*60+sm<eh*60+em){const ns=sh*60+sm+60<=eh*60+em?sh*60+sm+60:eh*60+em;const s=`${String(sh).padStart(2,"0")}:${String(sm).padStart(2,"0")}`;const e=`${String(Math.floor(ns/60)).padStart(2,"0")}:${String(ns%60).padStart(2,"0")}`;slots.push({id:`${Date.now()}-${s}`,coach,date,start:s,end:e,type,status:"active",createdAt:new Date().toISOString()});sh=Math.floor(ns/60);sm=ns%60}return slots};
-const BOOKING_KEY="studio_bookings_v1";
 const COACH_KEY="studio_coaches_v1";
-const loadLocalBookings=()=>{try{return JSON.parse(localStorage.getItem(BOOKING_KEY)||"[]")}catch{return[]}};
-const saveBookings=l=>localStorage.setItem(BOOKING_KEY,JSON.stringify(l));
 const loadCoaches=()=>{try{const s=localStorage.getItem(COACH_KEY);return s?JSON.parse(s):DEFAULT_COACHES}catch{return DEFAULT_COACHES}};
 const saveCoaches=l=>localStorage.setItem(COACH_KEY,JSON.stringify(l));
 async function sync(p){if(!SHEET_URL)return;try{await fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)})}catch(e){}}
-async function fetchBookings(){try{const r=await fetch(SHEET_URL+"?t="+Date.now());const d=await r.json();if(d.result==="ok")return d.bookings;return[]}catch(e){return[]}}
+async function fetchBookings(){try{const r=await fetch(SHEET_URL+"?t="+Date.now());const d=await r.json();if(d.result==="ok")return d.bookings||[];return[]}catch(e){return[]}}
 const C={bg:"#f7f5f0",surface:"#fff",border:"#e8e3da",text:"#1a1612",muted:"#8a7f72",accent:"#c8651a",accentBg:"#fdf3ea",accentBdr:"#f0c49a",green:"#1a7a4a",greenBg:"#edf7f2",greenBdr:"#a8d9bc",red:"#b91c1c",redBg:"#fef2f2",redBdr:"#fecaca",blue:"#1d4ed8",blueBg:"#eff6ff",blueBdr:"#bfdbfe",purple:"#6d28d9",purpleBg:"#f5f3ff",purpleBdr:"#ddd6fe",orange:"#c2410c",orangeBg:"#fff7ed",orangeBdr:"#fed7aa"};
 const H="'Georgia','Times New Roman',serif";
 const B="'Helvetica Neue',Helvetica,sans-serif";
@@ -48,27 +44,28 @@ const lbl={display:"block",fontSize:11,fontWeight:700,letterSpacing:"0.1em",text
 const inp={width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,padding:"10px 12px",fontFamily:B,fontSize:14,outline:"none",boxSizing:"border-box"};
 const btn=(c="accent",s="md")=>({background:c==="accent"?C.accent:c==="ghost"?"transparent":c==="red"?C.red:C.green,color:c==="ghost"?C.muted:"#fff",border:c==="ghost"?`1px solid ${C.border}`:"none",borderRadius:8,padding:s==="sm"?"6px 12px":s==="lg"?"14px 24px":"10px 16px",fontSize:s==="sm"?12:s==="lg"?15:13,fontWeight:700,fontFamily:B,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,transition:"opacity 0.15s"});
 function Badge({type,status}){const can=status==="cancelled",is1=type==="一對一";return<span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:4,background:can?C.redBg:is1?C.greenBg:C.purpleBg,color:can?C.red:is1?C.green:C.purple,border:`1px solid ${can?C.redBdr:is1?C.greenBdr:C.purpleBdr}`,textDecoration:can?"line-through":"none",whiteSpace:"nowrap"}}>{can?"已取消":type}</span>}
-function CoachPage({bookings,setBookings,coaches}){
+function CoachPage({coaches}){
 const[coach,setCoach]=useState("");
 const[date,setDate]=useState(todayStr());
 const[start,setStart]=useState(nowTime());
 const[end,setEnd]=useState(addOneHour(nowTime()));
 const[type,setType]=useState("1on1");const[ok,setOk]=useState(false);const[err,setErr]=useState("");
-const mine=useMemo(()=>bookings.filter(b=>b.coach===coach&&b.status!=="cancelled"&&b.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,coach]);
-const handleStartChange=e=>{const s=e.target.value;setStart(s);setEnd(addOneHour(s))};
+const[myBookings,setMyBookings]=useState([]);const[loadingMine,setLoadingMine]=useState(false);
+const loadMine=async c=>{if(!c)return;setLoadingMine(true);const all=await fetchBookings();const mine=all.filter(b=>b.coach===c&&b.status!=="cancelled"&&b.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start));setMyBookings(mine);setLoadingMine(false)};
+useEffect(()=>{loadMine(coach)},[coach]);
+const handleStartChange=e=>{setStart(e.target.value);setEnd(addOneHour(e.target.value))};
 const submit=async()=>{
 setErr("");
 if(!coach)return setErr("請選擇您的名字");
 if(!date)return setErr("請選擇日期");
 if(start>=end)return setErr("結束時間必須晚於開始時間");
 const slots=expandBookings(coach,date,start,end,type==="1on1"?"一對一":"一對二");
-const n=[...bookings,...slots];
-setBookings(n);saveBookings(n);
 for(const slot of slots){await sync({action:"add",...slot});}
 setOk(true);setTimeout(()=>setOk(false),3000);
 setStart(nowTime());setEnd(addOneHour(nowTime()));setType("1on1");
+await loadMine(coach);
 };
-const cancel=async id=>{const n=bookings.map(b=>b.id===id?{...b,status:"cancelled"}:b);setBookings(n);saveBookings(n);await sync({action:"cancel",...n.find(b=>b.id===id)})};
+const cancel=async id=>{await sync({action:"cancel",id,coach,date,start,end,type,status:"cancelled",createdAt:""});await loadMine(coach)};
 return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
 <div><h1 style={{fontFamily:H,fontSize:22,fontWeight:400,color:C.text}}>FourPlus Studio 預約</h1><p style={{fontSize:12,color:C.muted,marginTop:4}}>請登記您的上課時間</p></div>
@@ -81,18 +78,14 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div><label style={lbl}>我是</label><select value={coach} onChange={e=>setCoach(e.target.value)} style={inp}><option value="">— 請選擇您的名字 —</option>{coaches.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
 <div><label style={lbl}>上課日期</label><input type="date" value={date} min={todayStr()} onChange={e=>setDate(e.target.value)} style={inp}/></div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-<div>
-<label style={lbl}>開始時間</label>
-<select value={start} onChange={e=>{setStart(e.target.value);setEnd(addOneHour(e.target.value))}} style={inp}>
+<div><label style={lbl}>開始時間</label>
+<select value={start} onChange={handleStartChange} style={inp}>
 {Array.from({length:24},(_,i)=>`${String(i).padStart(2,"0")}:00`).map(t=><option key={t} value={t}>{t}</option>)}
-</select>
-</div>
-<div>
-<label style={lbl}>結束時間</label>
+</select></div>
+<div><label style={lbl}>結束時間</label>
 <select value={end} onChange={e=>setEnd(e.target.value)} style={inp}>
 {Array.from({length:24},(_,i)=>`${String(i).padStart(2,"0")}:00`).map(t=><option key={t} value={t}>{t}</option>)}
-</select>
-</div>
+</select></div>
 </div>
 <div style={{background:C.blueBg,border:`1px solid ${C.blueBdr}`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.blue}}>
 💡 系統會自動將預約拆成每小時一筆，方便個別取消
@@ -105,15 +98,18 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 {ok&&<div style={{background:C.greenBg,border:`1px solid ${C.greenBdr}`,borderRadius:8,padding:"10px 14px",color:C.green,fontSize:13}}>✓ 預約成功送出！</div>}
 <button onClick={submit} style={{...btn("accent","lg"),justifyContent:"center",width:"100%"}}>✓ 確認送出</button>
 </div></div>
-{coach&&mine.length>0&&<div style={card}>
+{coach&&<div style={card}>
 <h2 style={{fontFamily:H,fontSize:17,fontWeight:400,marginBottom:4,color:C.text}}>{coach} 的預約紀錄</h2>
 <p style={{fontSize:11,color:C.muted,marginBottom:16}}>顯示今天及未來的預約</p>
+{loadingMine?<div style={{textAlign:"center",color:C.muted,padding:"20px",fontSize:13}}>載入中...</div>:
+myBookings.length===0?<div style={{textAlign:"center",color:C.muted,padding:"20px",fontSize:13}}>目前沒有預約</div>:
 <div style={{display:"flex",flexDirection:"column",gap:8}}>
-{mine.map(b=><div key={b.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
+{myBookings.map(b=><div key={b.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
 <div style={{display:"flex",alignItems:"center",gap:12}}><Badge type={b.type} status={b.status}/><div><div style={{fontSize:13,fontWeight:700,color:C.text}}>{fmt(b.date)}</div><div style={{fontSize:12,color:C.muted}}>{b.start}–{b.end}</div></div></div>
 <button onClick={()=>cancel(b.id)} style={{...btn("ghost","sm"),color:C.red,borderColor:C.redBdr}}>✕ 取消</button>
 </div>)}
-</div></div>}
+</div>}
+</div>}
 </div></div>}
 function AdminLogin({onLogin}){
 const[pw,setPw]=useState("");const[show,setShow]=useState(false);const[err,setErr]=useState(false);
@@ -130,22 +126,23 @@ return<div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"
 {err&&<div style={{color:C.red,fontSize:12,textAlign:"center"}}>密碼錯誤，請再試一次</div>}
 <button onClick={go} style={{...btn("accent","lg"),justifyContent:"center"}}>→ 登入後台</button>
 </div></div></div>}
-function AdminDashboard({bookings,setBookings,coaches,setCoaches,onLogout}){
+function AdminDashboard({coaches,setCoaches,onLogout}){
 const[tab,setTab]=useState("schedule");
 const[vm,setVm]=useState(thisMonth());
 const[fc,setFc]=useState("all");const[fs,setFs]=useState("all");
 const[newCoach,setNewCoach]=useState("");const[addErr,setAddErr]=useState("");
 const[loading,setLoading]=useState(false);
+const[bookings,setBookings]=useState([]);
 const months=useMemo(()=>[...new Set(bookings.map(b=>mk(b.date)).filter(m=>m&&m.includes("-")))].sort().reverse(),[bookings]);
 const filtered=useMemo(()=>bookings.filter(b=>mk(b.date)===vm).filter(b=>fc==="all"||b.coach===fc).filter(b=>fs==="all"||b.status===fs).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,vm,fc,fs]);
 const stats=useMemo(()=>{const a=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const m={};for(const b of a){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]={total:0,"一對一":0,"一對二":0};m[b.coach].total+=h;m[b.coach]["一對一"]+=b.type==="一對一"?h:0;m[b.coach]["一對二"]+=b.type==="一對二"?h:0}return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)},[bookings,vm]);
 const dailySchedule=useMemo(()=>{const active=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const days={};for(const b of active){if(!days[b.date])days[b.date]=[];days[b.date].push(b)}return Object.entries(days).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,list])=>{const sorted=list.sort((a,b)=>a.start.localeCompare(b.start));return{date,list:sorted,opener:sorted[0],closer:sorted[sorted.length-1]}})},[bookings,vm]);
 const ta=filtered.filter(b=>b.status!=="cancelled").reduce((acc,b)=>acc+calcHours(b.start,b.end),0).toFixed(1);
 const tc=filtered.filter(b=>b.status==="cancelled").length;
-const hardDelete=id=>{if(!window.confirm("確定要永久刪除？"))return;const n=bookings.filter(b=>b.id!==id);setBookings(n);saveBookings(n)};
+const hardDelete=async id=>{if(!window.confirm("確定要永久刪除？"))return;await sync({action:"delete",id});await refresh()};
 const addCoach=()=>{const name=newCoach.trim();if(!name)return setAddErr("請輸入教練名字");if(coaches.includes(name))return setAddErr("此名字已存在");const n=[...coaches,name];setCoaches(n);saveCoaches(n);setNewCoach("");setAddErr("")};
 const removeCoach=name=>{if(!window.confirm(`確定要刪除「${name}」嗎？`))return;const n=coaches.filter(c=>c!==name);setCoaches(n);saveCoaches(n)};
-const refresh=async()=>{setLoading(true);const data=await fetchBookings();if(data&&data.length>0){setBookings(data);saveBookings(data)}setLoading(false)};
+const refresh=async()=>{setLoading(true);const data=await fetchBookings();setBookings(data);setLoading(false)};
 useEffect(()=>{refresh()},[]);
 return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:10}}>
@@ -164,7 +161,8 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 {months.length===0?<div style={{fontSize:13,color:C.muted}}>尚無任何紀錄</div>:months.map(m=><button key={m} onClick={()=>setVm(m)} style={{...btn(vm===m?"accent":"ghost","sm"),borderColor:vm===m?C.accent:C.border}}>{ml(m)}</button>)}
 </div>
 {tab==="schedule"&&<>
-{dailySchedule.length===0?<div style={{...card,textAlign:"center",color:C.muted,fontSize:13,padding:"40px 20px"}}>這個月尚無預約紀錄</div>:
+{loading?<div style={{...card,textAlign:"center",color:C.muted,padding:"40px"}}>載入中...</div>:
+dailySchedule.length===0?<div style={{...card,textAlign:"center",color:C.muted,fontSize:13,padding:"40px 20px"}}>這個月尚無預約紀錄</div>:
 dailySchedule.map(({date,list,opener,closer})=>(
 <div key={date} style={card}>
 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
@@ -232,7 +230,6 @@ dailySchedule.map(({date,list,opener,closer})=>(
 </div></div>}
 function App(){
 const[view,setView]=useState("coach");
-const[bookings,setBookings]=useState(loadLocalBookings);
 const[coaches,setCoaches]=useState(loadCoaches);
 const[auth,setAuth]=useState(false);
 return<div>
@@ -242,9 +239,9 @@ return<div>
 style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"12px 8px 14px",display:"flex",flexDirection:"column",alignItems:"center",gap:4,color:(view===key||(key==="adminLogin"&&view==="admin"))?C.accent:C.muted,fontFamily:B,fontSize:11,fontWeight:700,borderTop:`2px solid ${(view===key||(key==="adminLogin"&&view==="admin"))?C.accent:"transparent"}`}}>
 <span style={{fontSize:18}}>{key==="coach"?"👤":"📊"}</span>{label}</button>))}
 </div>
-{view==="coach"&&<CoachPage bookings={bookings} setBookings={setBookings} coaches={coaches}/>}
+{view==="coach"&&<CoachPage coaches={coaches}/>}
 {view==="adminLogin"&&<AdminLogin onLogin={()=>{setAuth(true);setView("admin")}}/>}
-{view==="admin"&&<AdminDashboard bookings={bookings} setBookings={setBookings} coaches={coaches} setCoaches={setCoaches} onLogout={()=>{setAuth(false);setView("adminLogin")}}/>}
+{view==="admin"&&<AdminDashboard coaches={coaches} setCoaches={setCoaches} onLogout={()=>{setAuth(false);setView("adminLogin")}}/>}
 </div>}
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
