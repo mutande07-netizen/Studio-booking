@@ -18,7 +18,7 @@ button:hover{opacity:0.85}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const{useState,useMemo}=React;
+const{useState,useMemo,useEffect}=React;
 const DEFAULT_COACHES=["Jessica","AJ","Kai","Wendy","Joy91","Amy","YY","NoNo(Jackie)","Roger","Ray","Calvin","Min","小六Six","Rita","Emma","Emily","2K","Ting","Tim","志嘉Ethan","Kevin","Jojo","Taidy","Myriam","Leann","Chang","柯","Vick","Lewin綸","卿哥","Lai小賴","Sherry","阿鳥/苡慈","Bailey(杯裡)","詠樺","Gary","丁丹","Mark","Linda","Billy","雲翔","GREEN","ERIC","Elvis","又玄","John","Rena","Mia","Joe"];
 const ADMIN_PASSWORD="fp16888";
 const SHEET_URL="https://script.google.com/macros/s/AKfycbznmXuD5S9WQ8R2Tpb_J0Wxy62FzzAiJXmihQ0v-7GX14C_vfsfukUnmqbUsv_zJ-mv/exec";
@@ -29,11 +29,12 @@ const calcHours=(start,end)=>{const[sh,sm]=start.split(":").map(Number);const[eh
 const addOneHour=t=>{const[h,m]=t.split(":").map(Number);const nh=h+1;return nh>=24?"23:59":`${String(nh).padStart(2,"0")}:${String(m).padStart(2,"0")}`};
 const BOOKING_KEY="studio_bookings_v1";
 const COACH_KEY="studio_coaches_v1";
-const loadBookings=()=>{try{return JSON.parse(localStorage.getItem(BOOKING_KEY)||"[]")}catch{return[]}};
+const loadLocalBookings=()=>{try{return JSON.parse(localStorage.getItem(BOOKING_KEY)||"[]")}catch{return[]}};
 const saveBookings=l=>localStorage.setItem(BOOKING_KEY,JSON.stringify(l));
 const loadCoaches=()=>{try{const s=localStorage.getItem(COACH_KEY);return s?JSON.parse(s):DEFAULT_COACHES}catch{return DEFAULT_COACHES}};
 const saveCoaches=l=>localStorage.setItem(COACH_KEY,JSON.stringify(l));
 async function sync(p){if(!SHEET_URL)return;try{await fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)})}catch(e){}}
+async function fetchBookings(){try{const r=await fetch(SHEET_URL,{method:"GET"});const d=await r.json();if(d.result==="ok")return d.bookings;return[]}catch(e){return[]}}
 const C={bg:"#f7f5f0",surface:"#fff",border:"#e8e3da",text:"#1a1612",muted:"#8a7f72",accent:"#c8651a",accentBg:"#fdf3ea",accentBdr:"#f0c49a",green:"#1a7a4a",greenBg:"#edf7f2",greenBdr:"#a8d9bc",red:"#b91c1c",redBg:"#fef2f2",redBdr:"#fecaca",blue:"#1d4ed8",blueBg:"#eff6ff",blueBdr:"#bfdbfe",purple:"#6d28d9",purpleBg:"#f5f3ff",purpleBdr:"#ddd6fe"};
 const H="'Georgia','Times New Roman',serif";
 const B="'Helvetica Neue',Helvetica,sans-serif";
@@ -101,6 +102,7 @@ const[tab,setTab]=useState("stats");
 const[vm,setVm]=useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`);
 const[fc,setFc]=useState("all");const[fs,setFs]=useState("all");
 const[newCoach,setNewCoach]=useState("");const[addErr,setAddErr]=useState("");
+const[loading,setLoading]=useState(false);
 const months=useMemo(()=>[...new Set(bookings.map(b=>mk(b.date)))].sort().reverse(),[bookings]);
 const filtered=useMemo(()=>bookings.filter(b=>mk(b.date)===vm).filter(b=>fc==="all"||b.coach===fc).filter(b=>fs==="all"||b.status===fs).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,vm,fc,fs]);
 const stats=useMemo(()=>{const a=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const m={};for(const b of a){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]={total:0,"一對一":0,"一對二":0};m[b.coach].total+=h;m[b.coach]["一對一"]+=b.type==="一對一"?h:0;m[b.coach]["一對二"]+=b.type==="一對二"?h:0}return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)},[bookings,vm]);
@@ -110,10 +112,15 @@ const ml=m=>{const[y,mo]=m.split("-");return`${y}年${parseInt(mo)}月`};
 const hardDelete=id=>{if(!window.confirm("確定要永久刪除？"))return;const n=bookings.filter(b=>b.id!==id);setBookings(n);saveBookings(n)};
 const addCoach=()=>{const name=newCoach.trim();if(!name)return setAddErr("請輸入教練名字");if(coaches.includes(name))return setAddErr("此名字已存在");const n=[...coaches,name];setCoaches(n);saveCoaches(n);setNewCoach("");setAddErr("")};
 const removeCoach=name=>{if(!window.confirm(`確定要刪除「${name}」嗎？`))return;const n=coaches.filter(c=>c!==name);setCoaches(n);saveCoaches(n)};
+const refresh=async()=>{setLoading(true);const data=await fetchBookings();if(data.length>0){setBookings(data);saveBookings(data)}setLoading(false)};
+useEffect(()=>{refresh()},[]);
 return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:10}}>
 <h1 style={{fontFamily:H,fontSize:20,fontWeight:400}}>管理員後台</h1>
+<div style={{display:"flex",gap:8}}>
+<button onClick={refresh} style={{...btn("ghost","sm")}}>{loading?"載入中...":"🔄 更新"}</button>
 <button onClick={onLogout} style={btn("ghost","sm")}>登出</button>
+</div>
 </div>
 <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex"}}>
 {[{key:"stats",label:"📊 預約統計"},{key:"coaches",label:"👥 教練名單"}].map(({key,label})=>(
@@ -167,7 +174,7 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 </div></div>}
 function App(){
 const[view,setView]=useState("coach");
-const[bookings,setBookings]=useState(loadBookings);
+const[bookings,setBookings]=useState(loadLocalBookings);
 const[coaches,setCoaches]=useState(loadCoaches);
 const[auth,setAuth]=useState(false);
 return<div>
