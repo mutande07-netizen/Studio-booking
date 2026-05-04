@@ -2,234 +2,235 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0"/>
-<title>FourPlus Studio V3.9 - 穩定不跳轉版</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>FourPlus Studio 預約系統</title>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-    *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,system-ui,sans-serif}
-    body{background:#f7f5f0;padding-bottom:80px;color:#1a1612}
-    select,input{color:#1a1612;font-size:16px!important}
-    .card{background:#fff;border-radius:12px;padding:24px;border:1px solid #e8e3da;margin-bottom:15px;box-shadow:0 2px 4px rgba(0,0,0,0.02)}
-    .label{display:block;font-size:11px;font-weight:700;color:#8a7f72;margin-bottom:6px;text-transform:uppercase}
-    .input-field{width:100%;background:#fcfaf7;border:1px solid #e8e3da;border-radius:8px;padding:12px;outline:none;margin-bottom:15px}
-    .btn-primary{background:#c8651a;color:#fff;border:none;border-radius:8px;padding:15px;font-weight:700;cursor:pointer;width:100%;font-size:16px}
-    .btn-ghost{background:transparent;border:1px solid #e8e3da;color:#8a7f72;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer}
-    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .nav-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e8e3da;display:flex;z-index:100}
-    .nav-btn{flex:1;padding:15px;border:none;background:none;font-size:12px;font-weight:700;color:#8a7f72;cursor:pointer;text-align:center}
-    .nav-btn.active{color:#c8651a;border-top:2px solid #c8651a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f7f5f0;font-family:'Helvetica Neue',Helvetica,sans-serif}
+select,input{color:#1a1612}
+select option{background:#fff}
+button:hover{opacity:0.85}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useMemo, useEffect } = React;
-
-const DEFAULT_COACHES = ["Jessica","AJ","Kai","Wendy","Joy91","Amy","YY","NoNo(Jackie)","Roger","Ray","Calvin","Min","小六Six","Rita","Emma","Emily","2K","Ting","Tim","志嘉Ethan","Kevin","Jojo","Taidy","Myriam","Leann","Chang","柯","Vick","Lewin綸","卿哥","Lai小賴","Sherry","阿鳥/苡慈","Bailey(杯裡)","詠樺","Gary","丁丹","Mark","Linda","Billy","雲翔","GREEN","ERIC","Elvis","又玄","John","Rena","Mia","Joe"];
-const ADMIN_PASSWORD = "fp16888";
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbznmXuD5S9WQ8R2Tpb_J0Wxy62FzzAiJXmihQ0v-7GX14C_vfsfukUnmqbUsv_zJ-mv/exec";
-
-const getToday = () => new Date().toLocaleDateString('en-CA');
-const getThisMonth = () => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; };
-const calcHours = (s, e) => {
-    const sp = s.split(":"), ep = e.split(":");
-    return ((parseInt(ep[0])*60+parseInt(ep[1])) - (parseInt(sp[0])*60+parseInt(sp[1])))/60;
+const{useState,useMemo,useEffect}=React;
+const DEFAULT_COACHES=["Jessica","AJ","Kai","Wendy","Joy91","Amy","YY","NoNo(Jackie)","Roger","Ray","Calvin","Min","小六Six","Rita","Emma","Emily","2K","Ting","Tim","志嘉Ethan","Kevin","Jojo","Taidy","Myriam","Leann","Chang","柯","Vick","Lewin綸","卿哥","Lai小賴","Sherry","阿鳥/苡慈","Bailey(杯裡)","詠樺","Gary","丁丹","Mark","Linda","Billy","雲翔","GREEN","ERIC","Elvis","又玄","John","Rena","Mia","Joe","單次場租"];
+const ADMIN_PASSWORD="fp16888";
+const SHEET_URL="https://script.google.com/macros/s/AKfycbznmXuD5S9WQ8R2Tpb_J0Wxy62FzzAiJXmihQ0v-7GX14C_vfsfukUnmqbUsv_zJ-mv/exec";
+const todayStr=()=>new Date().toISOString().split("T")[0];
+const thisMonth=()=>{const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`};
+const fmt=d=>{if(!d||typeof d!=="string"||!d.includes("-"))return d||"";const p=d.split("-");if(p.length<3)return d;return`${p[0]}/${p[1]}/${p[2]}`};
+const mk=d=>{if(!d||typeof d!=="string")return"";const p=d.split("-");if(p.length<2)return"";return`${p[0]}-${p[1]}`};
+const ml=m=>{if(!m||typeof m!=="string"||!m.includes("-"))return m||"";const p=m.split("-");return`${p[0]}年${parseInt(p[1])}月`};
+const calcHours=(start,end)=>{if(!start||!end||typeof start!=="string"||typeof end!=="string")return 0;const sp=start.split(":");const ep=end.split(":");if(sp.length<2||ep.length<2)return 0;const sh=parseInt(sp[0]),sm=parseInt(sp[1]),eh=parseInt(ep[0]),em=parseInt(ep[1]);if(isNaN(sh)||isNaN(eh))return 0;return((eh*60+em)-(sh*60+sm))/60};
+const addOneHour=t=>{const[h,m]=t.split(":").map(Number);const nh=h+1;return nh>=24?"23:59":`${String(nh).padStart(2,"0")}:${String(m).padStart(2,"0")}`};
+const expandBookings=(coach,date,start,end,type)=>{const slots=[];let[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);while(sh*60+sm<eh*60+em){const ns=sh*60+sm+60<=eh*60+em?sh*60+sm+60:eh*60+em;const s=`${String(sh).padStart(2,"0")}:${String(sm).padStart(2,"0")}`;const e=`${String(Math.floor(ns/60)).padStart(2,"0")}:${String(ns%60).padStart(2,"0")}`;slots.push({id:`${Date.now()}-${s}`,coach,date,start:s,end:e,type,status:"active",createdAt:new Date().toISOString()});sh=Math.floor(ns/60);sm=ns%60}return slots};
+const BOOKING_KEY="studio_bookings_v1";
+const COACH_KEY="studio_coaches_v1";
+const loadLocalBookings=()=>{try{return JSON.parse(localStorage.getItem(BOOKING_KEY)||"[]")}catch{return[]}};
+const saveBookings=l=>localStorage.setItem(BOOKING_KEY,JSON.stringify(l));
+const loadCoaches=()=>{try{const s=localStorage.getItem(COACH_KEY);return s?JSON.parse(s):DEFAULT_COACHES}catch{return DEFAULT_COACHES}};
+const saveCoaches=l=>localStorage.setItem(COACH_KEY,JSON.stringify(l));
+async function sync(p){if(!SHEET_URL)return;try{await fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)})}catch(e){}}
+async function fetchBookings(){try{const r=await fetch(SHEET_URL+"?t="+Date.now());const d=await r.json();if(d.result==="ok")return d.bookings;return[]}catch(e){return[]}}
+const C={bg:"#f7f5f0",surface:"#fff",border:"#e8e3da",text:"#1a1612",muted:"#8a7f72",accent:"#c8651a",accentBg:"#fdf3ea",accentBdr:"#f0c49a",green:"#1a7a4a",greenBg:"#edf7f2",greenBdr:"#a8d9bc",red:"#b91c1c",redBg:"#fef2f2",redBdr:"#fecaca",blue:"#1d4ed8",blueBg:"#eff6ff",blueBdr:"#bfdbfe",purple:"#6d28d9",purpleBg:"#f5f3ff",purpleBdr:"#ddd6fe",orange:"#c2410c",orangeBg:"#fff7ed",orangeBdr:"#fed7aa"};
+const H="'Georgia','Times New Roman',serif";
+const B="'Helvetica Neue',Helvetica,sans-serif";
+const card={background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:24};
+const lbl={display:"block",fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:C.muted,marginBottom:6};
+const inp={width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,padding:"10px 12px",fontFamily:B,fontSize:14,outline:"none",boxSizing:"border-box"};
+const btn=(c="accent",s="md")=>({background:c==="accent"?C.accent:c==="ghost"?"transparent":c==="red"?C.red:C.green,color:c==="ghost"?C.muted:"#fff",border:c==="ghost"?`1px solid ${C.border}`:"none",borderRadius:8,padding:s==="sm"?"6px 12px":s==="lg"?"14px 24px":"10px 16px",fontSize:s==="sm"?12:s==="lg"?15:13,fontWeight:700,fontFamily:B,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,transition:"opacity 0.15s"});
+function Badge({type,status}){const can=status==="cancelled",is1=type==="一對一";return<span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:4,background:can?C.redBg:is1?C.greenBg:C.purpleBg,color:can?C.red:is1?C.green:C.purple,border:`1px solid ${can?C.redBdr:is1?C.greenBdr:C.purpleBdr}`,textDecoration:can?"line-through":"none",whiteSpace:"nowrap"}}>{can?"已取消":type}</span>}
+function CoachPage({bookings,setBookings,coaches}){
+const[coach,setCoach]=useState("");const[date,setDate]=useState(todayStr());const[start,setStart]=useState("14:00");const[end,setEnd]=useState("15:00");const[type,setType]=useState("1on1");const[ok,setOk]=useState(false);const[err,setErr]=useState("");
+const mine=useMemo(()=>bookings.filter(b=>b.coach===coach&&b.status!=="cancelled"&&b.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,coach]);
+const handleStartChange=e=>{const s=e.target.value;setStart(s);setEnd(addOneHour(s))};
+const submit=async()=>{
+setErr("");
+if(!coach)return setErr("請選擇您的名字");
+if(!date)return setErr("請選擇日期");
+if(start>=end)return setErr("結束時間必須晚於開始時間");
+const slots=expandBookings(coach,date,start,end,type==="1on1"?"一對一":"一對二");
+const n=[...bookings,...slots];
+setBookings(n);saveBookings(n);
+for(const slot of slots){await sync({action:"add",...slot});}
+setOk(true);setTimeout(()=>setOk(false),3000);
+setStart("14:00");setEnd("15:00");setType("1on1");
 };
-const addOneHour = (t) => {
-    if(!t) return "";
-    const [h, m] = t.split(":").map(Number);
-    return `${String((h+1)%24).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
-};
-
-async function syncData(payload) {
-    if(!SHEET_URL) return;
-    try { await fetch(SHEET_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) }); } catch(e) {}
-}
-
-function App() {
-    const [view, setView] = useState('coach'); 
-    const [bookings, setBookings] = useState(() => JSON.parse(localStorage.getItem('fp_v3_data') || '[]'));
-    const [coaches, setCoaches] = useState(() => JSON.parse(localStorage.getItem('fp_v3_coaches') || JSON.stringify(DEFAULT_COACHES)));
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-    useEffect(() => { localStorage.setItem('fp_v3_data', JSON.stringify(bookings)); }, [bookings]);
-    useEffect(() => { localStorage.setItem('fp_v3_coaches', JSON.stringify(coaches)); }, [coaches]);
-
-    // --- 教練登記 ---
-    const CoachPage = () => {
-        const [name, setName] = useState('');
-        const [date, setDate] = useState(getToday());
-        const [start, setStart] = useState(() => { const h = (new Date().getHours()+1)%24; return `${String(h).padStart(2,'0')}:00`; });
-        const [end, setEnd] = useState(() => addOneHour(start));
-        const [type, setType] = useState('一對一');
-        const [ok, setOk] = useState(false);
-
-        const handleStartChange = (val) => {
-            setStart(val);
-            setEnd(addOneHour(val));
-        };
-
-        const handleSubmit = async () => {
-            if(!name) return alert('請先選擇教練姓名');
-            const diff = calcHours(start, end);
-            if(diff <= 0) return alert('結束時間錯誤');
-            
-            let newEntries = [];
-            const ts = Date.now();
-            if(diff > 1.5) {
-                let curS = start; let rem = diff; let i = 0;
-                while(rem > 0) {
-                    const take = rem >= 1 ? 1 : rem;
-                    const [h, m] = curS.split(":").map(Number);
-                    const totalMin = h*60 + m + (take*60);
-                    const nextE = `${String(Math.floor(totalMin/60)).padStart(2,"0")}:${String(totalMin%60).padStart(2,"0")}`;
-                    newEntries.push({ id: `${ts}-${i}`, coach: name, date, start: curS, end: nextE, type, status: 'active' });
-                    curS = nextE; rem -= take; i++;
-                }
-            } else {
-                newEntries.push({ id: `${ts}`, coach: name, date, start, end, type, status: 'active' });
-            }
-            
-            setBookings([...bookings, ...newEntries]);
-            setOk(true); 
-            setTimeout(() => setOk(false), 2500);
-            
-            // 重要：保持 name/date 原封不動
-            const lastEndStr = newEntries[newEntries.length-1].end;
-            setStart(lastEndStr);
-            setEnd(addOneHour(lastEndStr));
-
-            for(let b of newEntries) await syncData({ action: 'add', ...b });
-        };
-
-        return (
-            <div style={{padding:'20px', maxWidth:'560px', margin:'0 auto'}}>
-                <div className="card">
-                    <h2 style={{marginBottom:'20px', textAlign:'center'}}>FourPlus Studio 預約登記</h2>
-                    <label className="label">教練姓名</label>
-                    <select className="input-field" value={name} onChange={e=>setName(e.target.value)}>
-                        <option value="">請選擇</option>
-                        {coaches.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                    <label className="label">日期</label>
-                    <input type="date" className="input-field" value={date} onChange={e=>setDate(e.target.value)} />
-                    <div className="grid-2">
-                        <div><label className="label">開始</label><input type="time" className="input-field" value={start} onChange={e=>handleStartChange(e.target.value)} /></div>
-                        <div><label className="label">結束</label><input type="time" className="input-field" value={end} onChange={e=>setEnd(e.target.value)} /></div>
-                    </div>
-                    <label className="label">模式</label>
-                    <div className="grid-2" style={{marginBottom:'20px'}}>
-                        <button onClick={()=>setType('一對一')} style={{padding:'12px', borderRadius:'8px', border:`2px solid ${type==='一對一'?'#c8651a':'#e8e3da'}`, background:type==='一對一'?'#fdf3ea':'#fff'}}>一對一</button>
-                        <button onClick={()=>setType('一對二')} style={{padding:'12px', borderRadius:'8px', border:`2px solid ${type==='一對二'?'#c8651a':'#e8e3da'}`, background:type==='一對二'?'#fdf3ea':'#fff'}}>一對二</button>
-                    </div>
-                    <button className="btn-primary" onClick={handleSubmit}>確認送出預約</button>
-                    {ok && <p style={{textAlign:'center', marginTop:'15px', color:'green', fontWeight:'700'}}>✅ 登記成功！</p>}
-                </div>
-                {name && (
-                    <div>
-                        <h3 style={{fontSize:'14px', color:'#8a7f72', marginBottom:'12px'}}>{name} 近期紀錄：</h3>
-                        {bookings.filter(b=>b.coach===name && b.status==='active').slice(-10).reverse().map(b => (
-                            <div key={b.id} className="card" style={{padding:'12px', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
-                                <div style={{fontSize:'14px'}}><b>{b.date.slice(5)}</b> {b.start}-{b.end}</div>
-                                <button className="btn-ghost" style={{color:'#b91c1c'}} onClick={async()=>{
-                                    if(confirm('要取消這筆嗎？')){
-                                        setBookings(bookings.map(x=>x.id===b.id?{...x, status:'cancelled'}:x));
-                                        await syncData({ action: 'cancel', ...b });
-                                    }
-                                }}>取消</button>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    // --- 管理端 ---
-    const AdminDashboard = () => {
-        const [tab, setTab] = useState('schedule');
-        const viewMonth = getThisMonth();
-        const stats = useMemo(() => {
-            const m = {};
-            bookings.filter(b=>b.date.startsWith(viewMonth) && b.status==='active').forEach(b => {
-                const h = calcHours(b.start, b.end); m[b.coach] = (m[b.coach] || 0) + h;
-            });
-            return Object.entries(m).sort((a,b)=>b[1]-a[1]);
-        }, [bookings]);
-
-        return (
-            <div style={{padding:'20px', maxWidth:'800px', margin:'0 auto'}}>
-                <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
-                    <button className="btn-ghost" onClick={()=>setTab('schedule')} style={{borderColor:tab==='schedule'?'#c8651a':''}}>每日班表</button>
-                    <button className="btn-ghost" onClick={()=>setTab('stats')} style={{borderColor:tab==='stats'?'#c8651a':''}}>時數統計</button>
-                    <button className="btn-ghost" onClick={()=>setTab('manage')} style={{borderColor:tab==='manage'?'#c8651a':''}}>教練管理</button>
-                </div>
-                {tab === 'schedule' && (
-                    <div>
-                        {Object.entries(bookings.filter(b=>b.date.startsWith(viewMonth) && b.status==='active').reduce((acc,b)=>{ acc[b.date]=acc[b.date]||[]; acc[b.date].push(b); return acc; },{})).sort().reverse().map(([date, list]) => (
-                            <div key={date} className="card"><h3>{date}</h3>
-                                {list.sort((a,b)=>a.start.localeCompare(b.start)).map(b => (
-                                    <div key={b.id} style={{display:'flex', justifyContent:'space-between', padding:'5px 0', fontSize:'14px'}}>
-                                        <span><b>{b.coach}</b> {b.start}-{b.end}</span><span>{b.type}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        ))}
-                    </div>
-                )}
-                {tab === 'stats' && (
-                    <div className="card">
-                        {stats.map(([n, h]) => (
-                            <div key={n} style={{display:'flex', alignItems:'center', marginBottom:'10px'}}>
-                                <div style={{width:'80px', fontSize:'14px'}}>{n}</div>
-                                <div style={{flex:1, background:'#eee', height:'10px', borderRadius:'5px', margin:'0 10px', overflow:'hidden'}}><div style={{height:'100%', background:'#c8651a', width:`${(h/(stats[0][1]||1))*100}%`}}></div></div>
-                                <div style={{fontWeight:'700'}}>{h.toFixed(1)}h</div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-                {tab === 'manage' && (
-                    <div className="card">
-                        <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
-                            <input id="addN" className="input-field" style={{marginBottom:0}} placeholder="教練名字" />
-                            <button className="btn-primary" style={{width:'80px', padding:'10px'}} onClick={()=>{
-                                const v = document.getElementById('addN').value.trim();
-                                if(v && !coaches.includes(v)){ setCoaches([...coaches, v]); document.getElementById('addN').value=''; }
-                                // 重要：不觸發 setTab('schedule')，讓它留在原地
-                            }}>＋新增</button>
-                        </div>
-                        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:'10px'}}>
-                            {coaches.map(c => <div key={c} className="btn-ghost" style={{textAlign:'center', display:'flex', justifyContent:'space-between'}}>{c} <span onClick={()=>{if(confirm(`刪除 ${c}?`)) setCoaches(coaches.filter(x=>x!==c))}}>✕</span></div>)}
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    return (
-        <div>
-            {view === 'coach' && <CoachPage />}
-            {view === 'adminLogin' && (
-                <div style={{padding:'80px 20px', maxWidth:'400px', margin:'0 auto'}}>
-                    <div className="card"><h3 style={{marginBottom:'15px', textAlign:'center'}}>管理員登入</h3>
-                        <input type="password" id="p" className="input-field" placeholder="密碼" />
-                        <button className="btn-primary" onClick={()=>{ if(document.getElementById('p').value===ADMIN_PASSWORD){ setIsLoggedIn(true); setView('admin'); }else alert('密碼錯誤'); }}>登入</button>
-                    </div>
-                </div>
-            )}
-            {view === 'admin' && <AdminDashboard />}
-            
-            <div className="nav-bar">
-                <button className={`nav-btn ${view==='coach'?'active':''}`} onClick={() => setView('coach')}>👤 登記</button>
-                <button className={`nav-btn ${view==='admin' || view==='adminLogin'?'active':''}`} onClick={() => isLoggedIn ? setView('admin') : setView('adminLogin')}>📊 管理</button>
-            </div>
-        </div>
-    );
-}
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+const cancel=async id=>{const n=bookings.map(b=>b.id===id?{...b,status:"cancelled"}:b);setBookings(n);saveBookings(n);await sync({action:"cancel",...n.find(b=>b.id===id)})};
+return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
+<div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+<div><h1 style={{fontFamily:H,fontSize:22,fontWeight:400,color:C.text}}>FourPlus Studio 預約</h1><p style={{fontSize:12,color:C.muted,marginTop:4}}>請登記您的上課時間</p></div>
+<div style={{fontSize:11,color:C.muted,background:C.bg,padding:"6px 12px",borderRadius:20,border:`1px solid ${C.border}`}}>{fmt(todayStr())}</div>
+</div>
+<div style={{maxWidth:560,margin:"0 auto",padding:"24px 16px",display:"flex",flexDirection:"column",gap:20}}>
+<div style={card}>
+<h2 style={{fontFamily:H,fontSize:17,fontWeight:400,marginBottom:20,color:C.text}}>新增預約</h2>
+<div style={{display:"flex",flexDirection:"column",gap:16}}>
+<div><label style={lbl}>我是</label><select value={coach} onChange={e=>setCoach(e.target.value)} style={inp}><option value="">— 請選擇您的名字 —</option>{coaches.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+<div><label style={lbl}>上課日期</label><input type="date" value={date} min={todayStr()} onChange={e=>setDate(e.target.value)} style={inp}/></div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+<div><label style={lbl}>開始時間</label><input type="time" value={start} onChange={handleStartChange} style={inp}/></div>
+<div><label style={lbl}>結束時間</label><input type="time" value={end} onChange={e=>setEnd(e.target.value)} style={inp}/></div>
+</div>
+<div style={{background:C.blueBg,border:`1px solid ${C.blueBdr}`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.blue}}>
+💡 系統會自動將預約拆成每小時一筆，方便個別取消
+</div>
+<div><label style={lbl}>上課模式</label>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+{["1on1","1on2"].map(k=><button key={k} onClick={()=>setType(k)} style={{background:type===k?C.accentBg:C.bg,border:`2px solid ${type===k?C.accent:C.border}`,borderRadius:8,color:type===k?C.accent:C.muted,padding:"12px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:B,fontSize:14,fontWeight:700}}>{k==="1on1"?"一對一":"一對二"}</button>)}
+</div></div>
+{err&&<div style={{background:C.redBg,border:`1px solid ${C.redBdr}`,borderRadius:8,padding:"10px 14px",color:C.red,fontSize:13}}>⚠ {err}</div>}
+{ok&&<div style={{background:C.greenBg,border:`1px solid ${C.greenBdr}`,borderRadius:8,padding:"10px 14px",color:C.green,fontSize:13}}>✓ 預約成功送出！</div>}
+<button onClick={submit} style={{...btn("accent","lg"),justifyContent:"center",width:"100%"}}>✓ 確認送出</button>
+</div></div>
+{coach&&mine.length>0&&<div style={card}>
+<h2 style={{fontFamily:H,fontSize:17,fontWeight:400,marginBottom:4,color:C.text}}>{coach} 的預約紀錄</h2>
+<p style={{fontSize:11,color:C.muted,marginBottom:16}}>顯示今天及未來的預約</p>
+<div style={{display:"flex",flexDirection:"column",gap:8}}>
+{mine.map(b=><div key={b.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
+<div style={{display:"flex",alignItems:"center",gap:12}}><Badge type={b.type} status={b.status}/><div><div style={{fontSize:13,fontWeight:700,color:C.text}}>{fmt(b.date)}</div><div style={{fontSize:12,color:C.muted}}>{b.start}–{b.end}</div></div></div>
+<button onClick={()=>cancel(b.id)} style={{...btn("ghost","sm"),color:C.red,borderColor:C.redBdr}}>✕ 取消</button>
+</div>)}
+</div></div>}
+</div></div>}
+function AdminLogin({onLogin}){
+const[pw,setPw]=useState("");const[show,setShow]=useState(false);const[err,setErr]=useState(false);
+const go=()=>{if(pw.trim()===ADMIN_PASSWORD)onLogin();else{setErr(true);setTimeout(()=>setErr(false),1500)}};
+return<div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+<div style={{...card,width:"100%",maxWidth:380}}>
+<div style={{textAlign:"center",marginBottom:28}}>
+<div style={{width:48,height:48,borderRadius:12,background:C.accentBg,border:`1px solid ${C.accentBdr}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:22}}>🔐</div>
+<h1 style={{fontFamily:H,fontSize:22,fontWeight:400,marginBottom:4}}>管理員後台</h1>
+<p style={{fontSize:12,color:C.muted}}>請輸入管理員密碼</p>
+</div>
+<div style={{display:"flex",flexDirection:"column",gap:14}}>
+<div style={{position:"relative"}}><input type={show?"text":"password"} placeholder="密碼" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go()} style={{...inp,borderColor:err?C.red:C.border,paddingRight:44}}/><button onClick={()=>setShow(!show)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16}}>{show?"🙈":"👁"}</button></div>
+{err&&<div style={{color:C.red,fontSize:12,textAlign:"center"}}>密碼錯誤，請再試一次</div>}
+<button onClick={go} style={{...btn("accent","lg"),justifyContent:"center"}}>→ 登入後台</button>
+</div></div></div>}
+function AdminDashboard({bookings,setBookings,coaches,setCoaches,onLogout}){
+const[tab,setTab]=useState("schedule");
+const[vm,setVm]=useState(thisMonth());
+const[fc,setFc]=useState("all");const[fs,setFs]=useState("all");
+const[newCoach,setNewCoach]=useState("");const[addErr,setAddErr]=useState("");
+const[loading,setLoading]=useState(false);
+const months=useMemo(()=>[...new Set(bookings.map(b=>mk(b.date)).filter(m=>m&&m.includes("-")))].sort().reverse(),[bookings]);
+const filtered=useMemo(()=>bookings.filter(b=>mk(b.date)===vm).filter(b=>fc==="all"||b.coach===fc).filter(b=>fs==="all"||b.status===fs).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,vm,fc,fs]);
+const stats=useMemo(()=>{const a=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const m={};for(const b of a){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]={total:0,"一對一":0,"一對二":0};m[b.coach].total+=h;m[b.coach]["一對一"]+=b.type==="一對一"?h:0;m[b.coach]["一對二"]+=b.type==="一對二"?h:0}return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)},[bookings,vm]);
+const dailySchedule=useMemo(()=>{const active=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const days={};for(const b of active){if(!days[b.date])days[b.date]=[];days[b.date].push(b)}return Object.entries(days).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,list])=>{const sorted=list.sort((a,b)=>a.start.localeCompare(b.start));return{date,list:sorted,opener:sorted[0],closer:sorted[sorted.length-1]}})},[bookings,vm]);
+const ta=filtered.filter(b=>b.status!=="cancelled").reduce((acc,b)=>acc+calcHours(b.start,b.end),0).toFixed(1);
+const tc=filtered.filter(b=>b.status==="cancelled").length;
+const hardDelete=id=>{if(!window.confirm("確定要永久刪除？"))return;const n=bookings.filter(b=>b.id!==id);setBookings(n);saveBookings(n)};
+const addCoach=()=>{const name=newCoach.trim();if(!name)return setAddErr("請輸入教練名字");if(coaches.includes(name))return setAddErr("此名字已存在");const n=[...coaches,name];setCoaches(n);saveCoaches(n);setNewCoach("");setAddErr("")};
+const removeCoach=name=>{if(!window.confirm(`確定要刪除「${name}」嗎？`))return;const n=coaches.filter(c=>c!==name);setCoaches(n);saveCoaches(n)};
+const refresh=async()=>{setLoading(true);const data=await fetchBookings();if(data&&data.length>0){setBookings(data);saveBookings(data)}setLoading(false)};
+useEffect(()=>{refresh()},[]);
+return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
+<div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:10}}>
+<h1 style={{fontFamily:H,fontSize:20,fontWeight:400}}>管理員後台</h1>
+<div style={{display:"flex",gap:8}}>
+<button onClick={refresh} style={{...btn("ghost","sm")}}>{loading?"載入中...":"🔄 更新"}</button>
+<button onClick={onLogout} style={btn("ghost","sm")}>登出</button>
+</div>
+</div>
+<div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex"}}>
+{[{key:"schedule",label:"📅 每日班表"},{key:"stats",label:"📊 統計"},{key:"coaches",label:"👥 教練名單"}].map(({key,label})=>(
+<button key={key} onClick={()=>setTab(key)} style={{flex:1,background:"none",border:"none",borderBottom:`3px solid ${tab===key?C.accent:"transparent"}`,padding:"14px 4px",cursor:"pointer",fontSize:12,fontWeight:700,color:tab===key?C.accent:C.muted,fontFamily:B,whiteSpace:"nowrap"}}>{label}</button>))}
+</div>
+<div style={{maxWidth:800,margin:"0 auto",padding:"24px 16px",display:"flex",flexDirection:"column",gap:20}}>
+<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+{months.length===0?<div style={{fontSize:13,color:C.muted}}>尚無任何紀錄</div>:months.map(m=><button key={m} onClick={()=>setVm(m)} style={{...btn(vm===m?"accent":"ghost","sm"),borderColor:vm===m?C.accent:C.border}}>{ml(m)}</button>)}
+</div>
+{tab==="schedule"&&<>
+{dailySchedule.length===0?<div style={{...card,textAlign:"center",color:C.muted,fontSize:13,padding:"40px 20px"}}>這個月尚無預約紀錄</div>:
+dailySchedule.map(({date,list,opener,closer})=>(
+<div key={date} style={card}>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+<h2 style={{fontFamily:H,fontSize:16,fontWeight:400,color:C.text}}>{fmt(date)}</h2>
+<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.greenBg,color:C.green,border:`1px solid ${C.greenBdr}`}}>🌅 開店：{opener.coach} {opener.start}</span>
+<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.orangeBg,color:C.orange,border:`1px solid ${C.orangeBdr}`}}>🌙 關店：{closer.coach} {closer.end}</span>
+</div>
+</div>
+<div style={{display:"flex",flexDirection:"column",gap:8}}>
+{list.map(b=>(
+<div key={b.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
+<Badge type={b.type} status={b.status}/>
+<div style={{flex:1}}>
+<span style={{fontWeight:700,fontSize:13,color:C.text}}>{b.coach}</span>
+<span style={{fontSize:12,color:C.muted,marginLeft:8}}>{b.start}–{b.end} ({calcHours(b.start,b.end).toFixed(1)}h)</span>
+</div>
+</div>))}
+</div>
+</div>))}
+</>}
+{tab==="stats"&&<>
+<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+{[{label:"有效時數",value:ta,color:C.green,bg:C.greenBg},{label:"取消次數",value:tc,color:C.red,bg:C.redBg},{label:"教練人數",value:stats.length,color:C.blue,bg:C.blueBg}].map(({label,value,color,bg})=><div key={label} style={{...card,background:bg,padding:"16px 20px",border:"none",textAlign:"center"}}><div style={{fontSize:28,fontWeight:700,color}}>{value}</div><div style={{fontSize:11,color,opacity:0.8,marginTop:2}}>{label}</div></div>)}
+</div>
+{stats.length>0&&<div style={card}><h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:16}}>教練時數統計</h2>
+<div style={{display:"flex",flexDirection:"column",gap:8}}>
+{stats.map(([c,s])=><div key={c} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
+<div style={{width:80,fontWeight:700,fontSize:14,color:C.text}}>{c}</div>
+<div style={{flex:1}}><div style={{height:8,borderRadius:4,background:C.border,overflow:"hidden"}}><div style={{height:"100%",borderRadius:4,width:`${(s.total/(stats[0]?.[1].total||1))*100}%`,background:`linear-gradient(90deg,${C.accent},#e8893c)`}}/></div></div>
+<div style={{fontSize:13,color:C.muted,minWidth:120,textAlign:"right"}}><span style={{fontWeight:700,color:C.text,fontSize:16}}>{s.total.toFixed(1)}</span><span style={{fontSize:11,marginLeft:6}}>小時</span><span style={{marginLeft:8,fontSize:11}}>(1:1 {s["一對一"].toFixed(1)}h / 1:2 {s["一對二"].toFixed(1)}h)</span></div>
+</div>)}</div></div>}
+<div style={card}>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+<h2 style={{fontFamily:H,fontSize:16,fontWeight:400}}>預約明細</h2>
+<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+<select value={fc} onChange={e=>setFc(e.target.value)} style={{...inp,width:"auto",fontSize:12,padding:"6px 10px"}}><option value="all">所有教練</option>{coaches.map(c=><option key={c} value={c}>{c}</option>)}</select>
+<select value={fs} onChange={e=>setFs(e.target.value)} style={{...inp,width:"auto",fontSize:12,padding:"6px 10px"}}><option value="all">全部狀態</option><option value="active">有效</option><option value="cancelled">已取消</option></select>
+</div></div>
+{filtered.length===0?<div style={{padding:"40px 20px",textAlign:"center",color:C.muted,fontSize:13}}>這個月尚無符合條件的預約</div>:
+<div style={{display:"flex",flexDirection:"column",gap:8}}>
+{filtered.map(b=><div key={b.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:b.status==="cancelled"?C.redBg:C.bg,borderRadius:8,border:`1px solid ${b.status==="cancelled"?C.redBdr:C.border}`,opacity:b.status==="cancelled"?0.7:1}}>
+<div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><Badge type={b.type} status={b.status}/><div><div style={{fontSize:14,fontWeight:700,color:C.text}}>{b.coach}</div><div style={{fontSize:12,color:C.muted}}>{fmt(b.date)} · {b.start}–{b.end} ({calcHours(b.start,b.end).toFixed(1)}h)</div></div></div>
+<button onClick={()=>hardDelete(b.id)} style={{...btn("ghost","sm"),color:C.red,borderColor:C.redBdr,padding:"4px 8px"}}>🗑</button>
+</div>)}</div>}
+</div></>}
+{tab==="coaches"&&<div style={card}>
+<h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:20}}>👥 教練名單管理</h2>
+<div style={{marginBottom:24}}>
+<label style={lbl}>新增教練</label>
+<div style={{display:"flex",gap:10}}>
+<input value={newCoach} onChange={e=>setNewCoach(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCoach()} placeholder="輸入教練名字" style={{...inp,flex:1}}/>
+<button onClick={addCoach} style={btn("accent","md")}>＋ 新增</button>
+</div>
+{addErr&&<div style={{color:C.red,fontSize:12,marginTop:6}}>⚠ {addErr}</div>}
+</div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>
+{coaches.map(c=><div key={c} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px"}}>
+<span style={{fontSize:13,fontWeight:700,color:C.text}}>{c}</span>
+<button onClick={()=>removeCoach(c)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:18,lineHeight:1,padding:"0 0 0 8px"}}>×</button>
+</div>)}
+</div>
+<div style={{marginTop:16,fontSize:12,color:C.muted}}>共 {coaches.length} 位教練</div>
+</div>}
+</div></div>}
+function App(){
+const[view,setView]=useState("coach");
+const[bookings,setBookings]=useState(loadLocalBookings);
+const[coaches,setCoaches]=useState(loadCoaches);
+const[auth,setAuth]=useState(false);
+return<div>
+<div style={{position:"fixed",bottom:0,left:0,right:0,background:C.surface,borderTop:`1px solid ${C.border}`,display:"flex",zIndex:20}}>
+{[{key:"coach",label:"教練登記"},{key:"adminLogin",label:"管理後台"}].map(({key,label})=>(
+<button key={key} onClick={()=>{if(key==="adminLogin"){auth?setView("admin"):setView("adminLogin")}else setView("coach")}}
+style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"12px 8px 14px",display:"flex",flexDirection:"column",alignItems:"center",gap:4,color:(view===key||(key==="adminLogin"&&view==="admin"))?C.accent:C.muted,fontFamily:B,fontSize:11,fontWeight:700,borderTop:`2px solid ${(view===key||(key==="adminLogin"&&view==="admin"))?C.accent:"transparent"}`}}>
+<span style={{fontSize:18}}>{key==="coach"?"👤":"📊"}</span>{label}</button>))}
+</div>
+{view==="coach"&&<CoachPage bookings={bookings} setBookings={setBookings} coaches={coaches}/>}
+{view==="adminLogin"&&<AdminLogin onLogin={()=>{setAuth(true);setView("admin")}}/>}
+{view==="admin"&&<AdminDashboard bookings={bookings} setBookings={setBookings} coaches={coaches} setCoaches={setCoaches} onLogout={()=>{setAuth(false);setView("adminLogin")}}/>}
+</div>}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
