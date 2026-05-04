@@ -1,153 +1,125 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0"/>
-    <title>FourPlus Studio V3.2 FINAL</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <style>
-        *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-        body{background:#f7f5f0;color:#1a1612;padding-bottom:80px}
-        input,select,button{font-size:16px!important}
-        .container{max-width:500px;margin:0 auto;padding:20px}
-        .card{background:#fff;border-radius:12px;padding:20px;border:1px solid #e8e3da;box-shadow:0 2px 8px rgba(0,0,0,0.05);margin-bottom:20px}
-        .label{display:block;font-size:12px;font-weight:700;color:#8a7f72;margin-bottom:6px;letter-spacing:1px}
-        .input-field{width:100%;padding:12px;border:1px solid #e8e3da;border-radius:8px;background:#fcfaf7;margin-bottom:15px;outline:none}
-        .btn-primary{background:#c8651a;color:#fff;border:none;padding:15px;border-radius:8px;font-weight:700;width:100%;cursor:pointer}
-        .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-        .nav-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e8e3da;display:flex;padding:10px 0;z-index:100}
-        .nav-item{flex:1;text-align:center;background:none;border:none;color:#8a7f72;font-size:12px;font-weight:700}
-        .nav-item.active{color:#c8651a}
-    </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0"/>
+<title>FourPlus Studio V3.2</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+    *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,system-ui,sans-serif}
+    body{background:#f7f5f0;padding-bottom:50px}
+    .card{background:#fff;border-radius:12px;padding:20px;border:1px solid #e8e3da;margin-bottom:15px}
+    .input-field{width:100%;padding:12px;border:1px solid #e8e3da;border-radius:8px;margin-bottom:12px;font-size:16px!important}
+    .btn-primary{background:#c8651a;color:#fff;border:none;padding:15px;border-radius:8px;font-weight:700;width:100%;font-size:16px}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .label{font-size:12px;font-weight:700;color:#8a7f72;margin-bottom:4px;display:block}
+</style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useMemo } = React;
-
+const { useState, useEffect } = React;
 const COACHES = ["Jessica","AJ","Kai","Wendy","Joy91","Amy","YY","NoNo(Jackie)","Roger","Ray","Calvin","Min","小六Six","Rita","Emma","Emily","2K","Ting","Tim","志嘉Ethan","Kevin","Jojo","Taidy","Myriam","Leann","Chang","柯","Vick","Lewin綸","卿哥","Lai小賴","Sherry","阿鳥/苡慈","Bailey(杯裡)","詠樺","Gary","丁丹","Mark","Linda","Billy","雲翔","GREEN","ERIC","Elvis","又玄","John","Rena","Mia","Joe"];
 const API_URL = "https://script.google.com/macros/s/AKfycbznmXuD5S9WQ8R2Tpb_J0Wxy62FzzAiJXmihQ0v-7GX14C_vfsfukUnmqbUsv_zJ-mv/exec";
 
-// 輔助工具
-const getNextHour = () => {
-    const d = new Date();
-    d.setHours(d.getHours() + 1);
-    return `${String(d.getHours() % 24).padStart(2, '0')}:00`;
-};
-const getAfterOneHour = (timeStr) => {
-    const [h, m] = timeStr.split(':').map(Number);
-    return `${String((h + 1) % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-};
-
 function App() {
-    const [view, setView] = useState('coach');
-    const [bookings, setBookings] = useState(() => JSON.parse(localStorage.getItem('fp_data_v32') || '[]'));
-    const [coach, setCoach] = useState('');
+    const [bookings, setBookings] = useState(() => JSON.parse(localStorage.getItem('fp_v3_data') || '[]'));
+    const [name, setName] = useState('');
     const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
-    const [start, setStart] = useState(getNextHour());
-    const [end, setEnd] = useState(getAfterOneHour(getNextHour()));
+    
+    const [start, setStart] = useState(() => {
+        const h = new Date().getHours() + 1;
+        return `${String(h % 24).padStart(2, '0')}:00`;
+    });
+    const [end, setEnd] = useState(() => {
+        const h = new Date().getHours() + 2;
+        return `${String(h % 24).padStart(2, '0')}:00`;
+    });
     const [type, setType] = useState('一對一');
-    const [msg, setMsg] = useState('');
 
-    useEffect(() => {
-        localStorage.setItem('fp_data_v32', JSON.stringify(bookings));
-    }, [bookings]);
+    useEffect(() => { localStorage.setItem('fp_v3_data', JSON.stringify(bookings)); }, [bookings]);
+
+    // 關鍵修正：當開始時間改變，結束時間自動 +1 小時
+    const handleStartChange = (newVal) => {
+        setStart(newVal);
+        const [h, m] = newVal.split(':').map(Number);
+        const nextH = String((h + 1) % 24).padStart(2, '0');
+        const nextM = String(m).padStart(2, '0');
+        setEnd(`${nextH}:${nextM}`);
+    };
 
     const handleSubmit = async () => {
-        if (!coach) return alert('請先選擇你的名字');
-        
+        if (!name) return alert('請選擇教練');
         const sM = parseInt(start.split(':')[0]) * 60 + parseInt(start.split(':')[1]);
         const eM = parseInt(end.split(':')[0]) * 60 + parseInt(end.split(':')[1]);
         const diff = eM - sM;
-        if (diff <= 0) return alert('結束時間必須晚於開始時間');
+        if (diff <= 0) return alert('結束時間錯誤');
 
-        const timestamp = Date.now();
         let newEntries = [];
+        const ts = Date.now();
 
-        // 核心邏輯：超過 90 分鐘才拆分
         if (diff > 90) {
             let cur = sM;
-            let count = 0;
+            let i = 0;
             while (cur < eM) {
                 let next = Math.min(cur + 60, eM);
                 newEntries.push({
-                    id: `${timestamp}-${count}`, coach, date, type, status: 'active',
+                    id: `${ts}-${i}`, coach: name, date, type, status: 'active',
                     start: `${String(Math.floor(cur/60)).padStart(2,'0')}:${String(cur%60).padStart(2,'0')}`,
                     end: `${String(Math.floor(next/60)).padStart(2,'0')}:${String(next%60).padStart(2,'0')}`
                 });
-                cur = next; count++;
+                cur = next; i++;
             }
         } else {
-            newEntries.push({ id: `${timestamp}`, coach, date, start, end, type, status: 'active' });
+            newEntries.push({ id: `${ts}`, coach: name, date, start, end, type, status: 'active' });
         }
 
-        const updated = [...bookings, ...newEntries];
-        setBookings(updated);
-        setMsg('✅ 送出成功！');
+        setBookings([...bookings, ...newEntries]);
+        for (let e of newEntries) { fetch(API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'add', ...e }) }); }
         
-        // 更新下一筆的預設時間
-        const lastEnd = newEntries[newEntries.length - 1].end;
-        setStart(lastEnd);
-        setEnd(getAfterOneHour(lastEnd));
-
-        setTimeout(() => setMsg(''), 3000);
-
-        // 同步至 Google
-        for (let e of newEntries) {
-            fetch(API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'add', ...e }) });
-        }
+        // 送出後，下一次的開始時間等於上一次的結束時間
+        const lastEnd = newEntries[newEntries.length-1].end;
+        handleStartChange(lastEnd);
     };
 
     return (
-        <div className="container">
-            <h2 style={{textAlign:'center', margin:'20px 0'}}>FourPlus Studio 登記</h2>
-            
+        <div style={{padding:'20px', maxWidth:'500px', margin:'0 auto'}}>
+            <h2 style={{textAlign:'center', marginBottom:'20px'}}>Studio 預約登記 V3.2</h2>
             <div className="card">
-                <label className="label">教練姓名</label>
-                <select className="input-field" value={coach} onChange={e => setCoach(e.target.value)}>
+                <label className="label">教練名字</label>
+                <select className="input-field" value={name} onChange={e => setName(e.target.value)}>
                     <option value="">請選擇</option>
                     {COACHES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-
                 <label className="label">上課日期</label>
                 <input type="date" className="input-field" value={date} onChange={e => setDate(e.target.value)} />
-
                 <div className="grid-2">
                     <div>
                         <label className="label">開始時間</label>
-                        <input type="time" className="input-field" value={start} onChange={e => setStart(e.target.value)} autoComplete="off" />
+                        <input type="time" className="input-field" value={start} onChange={e => handleStartChange(e.target.value)} autoComplete="off" />
                     </div>
                     <div>
                         <label className="label">結束時間</label>
                         <input type="time" className="input-field" value={end} onChange={e => setEnd(e.target.value)} autoComplete="off" />
                     </div>
                 </div>
-
-                <label className="label">上課模式</label>
-                <div className="grid-2" style={{marginBottom:'20px'}}>
-                    <button onClick={()=>setType('一對一')} style={{padding:'12px', borderRadius:'8px', border:'2px solid', borderColor:type==='一對一'?'#c8651a':'#e8e3da', background:type==='一對一'?'#fdf3ea':'#fff', color:type==='一對一'?'#c8651a':''}}>一對一</button>
-                    <button onClick={()=>setType('一對二')} style={{padding:'12px', borderRadius:'8px', border:'2px solid', borderColor:type==='一對二'?'#c8651a':'#e8e3da', background:type==='一對二'?'#fdf3ea':'#fff', color:type==='一對二'?'#c8651a':''}}>一對二</button>
+                <div className="grid-2" style={{marginBottom:'15px'}}>
+                    <button onClick={()=>setType('一對一')} style={{padding:'10px', borderRadius:'8px', border:'1px solid #c8651a', background:type==='一對一'?'#fdf3ea':'#fff'}}>一對一</button>
+                    <button onClick={()=>setType('一對二')} style={{padding:'10px', borderRadius:'8px', border:'1px solid #c8651a', background:type==='一對二'?'#fdf3ea':'#fff'}}>一對二</button>
                 </div>
-
-                <button className="btn-primary" onClick={handleSubmit}>確認送出預約</button>
-                {msg && <p style={{textAlign:'center', marginTop:'10px', color:'#1a7a4a', fontWeight:'700'}}>{msg}</p>}
+                <button className="btn-primary" onClick={handleSubmit}>確認送出</button>
             </div>
-
-            {coach && (
+            {name && (
                 <div>
-                    <p style={{fontSize:'12px', color:'#8a7f72', marginBottom:'10px'}}>你的近期登記：</p>
-                    {bookings.filter(b => b.coach === coach && b.status === 'active').sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)).map(b => (
-                        <div key={b.id} className="card" style={{padding:'12px', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
-                            <div style={{fontSize:'14px'}}>
-                                <strong>{b.date.slice(5)}</strong> <span style={{marginLeft:'5px'}}>{b.start}-{b.end}</span>
-                                <span style={{marginLeft:'10px', color:'#c8651a', fontSize:'11px'}}>{b.type}</span>
-                            </div>
-                            <button style={{color:'#ff4d4f', border:'none', background:'none', fontSize:'13px'}} onClick={async()=>{
-                                if(confirm('確定要取消這筆預約嗎？')){
-                                    const next = bookings.map(x => x.id === b.id ? {...x, status:'cancelled'} : x);
-                                    setBookings(next);
+                    <p style={{fontSize:'12px', color:'#8a7f72', marginBottom:'10px'}}>目前預約紀錄：</p>
+                    {bookings.filter(b => b.coach === name && b.status === 'active').map(b => (
+                        <div key={b.id} className="card" style={{padding:'10px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                            <span style={{fontSize:'14px'}}>{b.date} {b.start}-{b.end} ({b.type})</span>
+                            <button style={{color:'red', border:'none', background:'none', fontSize:'12px'}} onClick={async()=>{
+                                if(confirm('取消？')){
+                                    setBookings(bookings.map(x => x.id === b.id ? {...x, status:'cancelled'} : x));
                                     fetch(API_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'cancel', ...b }) });
                                 }
                             }}>取消</button>
@@ -158,9 +130,7 @@ function App() {
         </div>
     );
 }
-
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>
