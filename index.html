@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0"/>
-<title>FourPlus Studio V3.5 - 原地確認版</title>
+<title>FourPlus Studio V3.7 - 手機穩定版</title>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#f7f5f0;font-family:-apple-system,system-ui,sans-serif;color:#1a1612;padding-bottom:80px}
+    *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,system-ui,sans-serif}
+    body{background:#f7f5f0;padding-bottom:80px;color:#1a1612}
     select,input{color:#1a1612;font-size:16px!important}
-    .card{background:#fff;border-radius:12px;padding:24px;border:1px solid #e8e3da;margin-bottom:20px;box-shadow:0 2px 4px rgba(0,0,0,0.02)}
-    .label{display:block;font-size:11px;font-weight:700;letter-spacing:0.1em;color:#8a7f72;margin-bottom:6px;text-transform:uppercase}
+    .card{background:#fff;border-radius:12px;padding:24px;border:1px solid #e8e3da;margin-bottom:15px;box-shadow:0 2px 4px rgba(0,0,0,0.02)}
+    .label{display:block;font-size:11px;font-weight:700;color:#8a7f72;margin-bottom:6px;text-transform:uppercase}
     .input-field{width:100%;background:#fcfaf7;border:1px solid #e8e3da;border-radius:8px;padding:12px;outline:none;margin-bottom:15px}
-    .btn-primary{background:#c8651a;color:#fff;border:none;border-radius:8px;padding:14px;font-weight:700;cursor:pointer;width:100%;font-size:15px}
+    .btn-primary{background:#c8651a;color:#fff;border:none;border-radius:8px;padding:15px;font-weight:700;cursor:pointer;width:100%;font-size:16px}
     .btn-ghost{background:transparent;border:1px solid #e8e3da;color:#8a7f72;padding:8px 12px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer}
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .nav-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e8e3da;display:flex;z-index:100}
@@ -33,7 +33,6 @@ const SHEET_URL = "https://script.google.com/macros/s/AKfycbznmXuD5S9WQ8R2Tpb_J0
 
 const getToday = () => new Date().toLocaleDateString('en-CA');
 const getThisMonth = () => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`; };
-const formatMonth = (m) => { const p = m.split("-"); return `${p[0]}年${parseInt(p[1])}月`; };
 const calcHours = (s, e) => {
     const sp = s.split(":"), ep = e.split(":");
     return ((parseInt(ep[0])*60+parseInt(ep[1])) - (parseInt(sp[0])*60+parseInt(sp[1])))/60;
@@ -49,14 +48,15 @@ async function syncData(payload) {
 }
 
 function App() {
-    const [view, setView] = useState('coach');
+    const [view, setView] = useState('coach'); 
     const [bookings, setBookings] = useState(() => JSON.parse(localStorage.getItem('fp_v3_data') || '[]'));
     const [coaches, setCoaches] = useState(() => JSON.parse(localStorage.getItem('fp_v3_coaches') || JSON.stringify(DEFAULT_COACHES)));
-    const [isAdmin, setIsAdmin] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
 
     useEffect(() => { localStorage.setItem('fp_v3_data', JSON.stringify(bookings)); }, [bookings]);
     useEffect(() => { localStorage.setItem('fp_v3_coaches', JSON.stringify(coaches)); }, [coaches]);
 
+    // --- 教練登記組件 ---
     const CoachPage = () => {
         const [name, setName] = useState('');
         const [date, setDate] = useState(getToday());
@@ -71,9 +71,10 @@ function App() {
         };
 
         const handleSubmit = async () => {
-            if(!name) return alert('請選擇名字');
+            if(!name) return alert('請先選擇教練名字');
             const diff = calcHours(start, end);
-            if(diff <= 0) return alert('時間錯誤');
+            if(diff <= 0) return alert('時間順序不正確');
+            
             let newEntries = [];
             const ts = Date.now();
             if(diff > 1.5) {
@@ -89,18 +90,23 @@ function App() {
             } else {
                 newEntries.push({ id: `${ts}`, coach: name, date, start, end, type: type==='1on1'?'一對一':'一對二', status: 'active' });
             }
+            
             setBookings([...bookings, ...newEntries]);
-            setOk(true); setTimeout(()=>setOk(false), 3000);
+            setOk(true); 
+            setTimeout(() => setOk(false), 2500);
+            
+            // 保持在原地並更新預填時間
+            const lastEnd = newEntries[newEntries.length-1].end;
+            setStart(lastEnd);
+            setEnd(addOneHour(lastEnd));
+
             for(let b of newEntries) await syncData({ action: 'add', ...b });
-            // 更新下次預填時間但停留在原地
-            setStart(newEntries[newEntries.length-1].end);
-            setEnd(addOneHour(newEntries[newEntries.length-1].end));
         };
 
         return (
             <div style={{padding:'20px', maxWidth:'560px', margin:'0 auto'}}>
                 <div className="card">
-                    <h2 style={{marginBottom:'20px'}}>Studio 預約登記</h2>
+                    <h2 style={{marginBottom:'20px', textAlign:'center'}}>Studio 教練登記</h2>
                     <label className="label">教練姓名</label>
                     <select className="input-field" value={name} onChange={e=>setName(e.target.value)}>
                         <option value="">請選擇</option>
@@ -112,21 +118,22 @@ function App() {
                         <div><label className="label">開始</label><input type="time" className="input-field" value={start} onChange={e=>handleStartChange(e.target.value)} /></div>
                         <div><label className="label">結束</label><input type="time" className="input-field" value={end} onChange={e=>setEnd(e.target.value)} /></div>
                     </div>
+                    <label className="label">模式</label>
                     <div className="grid-2" style={{marginBottom:'20px'}}>
                         <button onClick={()=>setType('1on1')} style={{padding:'12px', borderRadius:'8px', border:`2px solid ${type==='1on1'?'#c8651a':'#e8e3da'}`, background:type==='1on1'?'#fdf3ea':'#fff'}}>一對一</button>
                         <button onClick={()=>setType('1on2')} style={{padding:'12px', borderRadius:'8px', border:`2px solid ${type==='1on2'?'#c8651a':'#e8e3da'}`, background:type==='1on2'?'#fdf3ea':'#fff'}}>一對二</button>
                     </div>
                     <button className="btn-primary" onClick={handleSubmit}>確認送出預約</button>
-                    {ok && <p style={{textAlign:'center', marginTop:'15px', color:'#1a7a4a', fontWeight:'700'}}>✅ 登記成功，已同步更新紀錄</p>}
+                    {ok && <p style={{textAlign:'center', marginTop:'15px', color:'green', fontWeight:'700'}}>✅ 登記成功！請核對下方列表</p>}
                 </div>
                 {name && (
                     <div>
-                        <h3 style={{fontSize:'14px', color:'#8a7f72', marginBottom:'12px'}}>{name} 的預約紀錄：</h3>
+                        <h3 style={{fontSize:'14px', color:'#8a7f72', marginBottom:'12px'}}>{name} 近期紀錄：</h3>
                         {bookings.filter(b=>b.coach===name && b.status==='active').slice(-10).reverse().map(b => (
                             <div key={b.id} className="card" style={{padding:'12px', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px'}}>
                                 <div style={{fontSize:'14px'}}><b>{b.date.slice(5)}</b> {b.start}-{b.end}</div>
-                                <button className="btn-ghost" style={{color:'#b91c1c', borderColor:'#fecaca'}} onClick={async()=>{
-                                    if(confirm('取消此筆？')){
+                                <button className="btn-ghost" style={{color:'#b91c1c'}} onClick={async()=>{
+                                    if(confirm('要取消這筆嗎？')){
                                         setBookings(bookings.map(x=>x.id===b.id?{...x, status:'cancelled'}:x));
                                         await syncData({ action: 'cancel', ...b });
                                     }
@@ -139,31 +146,31 @@ function App() {
         );
     };
 
+    // --- 管理後台組件 ---
     const AdminDashboard = () => {
         const [tab, setTab] = useState('schedule');
-        const [viewMonth, setViewMonth] = useState(getThisMonth());
-        const months = useMemo(() => [...new Set(bookings.map(b => b.date.slice(0, 7)))].sort().reverse(), [bookings]);
+        const viewMonth = getThisMonth();
         const stats = useMemo(() => {
             const m = {};
             bookings.filter(b=>b.date.startsWith(viewMonth) && b.status==='active').forEach(b => {
                 const h = calcHours(b.start, b.end); m[b.coach] = (m[b.coach] || 0) + h;
             });
             return Object.entries(m).sort((a,b)=>b[1]-a[1]);
-        }, [bookings, viewMonth]);
+        }, [bookings]);
 
         return (
             <div style={{padding:'20px', maxWidth:'800px', margin:'0 auto'}}>
                 <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
-                    <button className="btn-ghost" onClick={()=>setTab('schedule')} style={{color:tab==='schedule'?'#c8651a':''}}>每日班表</button>
-                    <button className="btn-ghost" onClick={()=>setTab('stats')} style={{color:tab==='stats'?'#c8651a':''}}>時數統計</button>
-                    <button className="btn-ghost" onClick={()=>setTab('manage')} style={{color:tab==='manage'?'#c8651a':''}}>教練管理</button>
+                    <button className="btn-ghost" onClick={()=>setTab('schedule')} style={{borderColor:tab==='schedule'?'#c8651a':''}}>📅 每日班表</button>
+                    <button className="btn-ghost" onClick={()=>setTab('stats')} style={{borderColor:tab==='stats'?'#c8651a':''}}>📊 統計</button>
+                    <button className="btn-ghost" onClick={()=>setTab('manage')} style={{borderColor:tab==='manage'?'#c8651a':''}}>👥 教練管理</button>
                 </div>
                 {tab === 'schedule' && (
                     <div>
                         {Object.entries(bookings.filter(b=>b.date.startsWith(viewMonth) && b.status==='active').reduce((acc,b)=>{ acc[b.date]=acc[b.date]||[]; acc[b.date].push(b); return acc; },{})).sort().reverse().map(([date, list]) => (
-                            <div key={date} className="card"><h3 style={{fontSize:'16px', borderBottom:'1px solid #eee', paddingBottom:'10px', marginBottom:'10px'}}>{date}</h3>
+                            <div key={date} className="card"><h3 style={{fontSize:'16px', borderBottom:'1px solid #eee', marginBottom:'10px', paddingBottom:'5px'}}>{date}</h3>
                                 {list.sort((a,b)=>a.start.localeCompare(b.start)).map(b => (
-                                    <div key={b.id} style={{display:'flex', justifyContent:'space-between', fontSize:'14px', padding:'6px 0'}}>
+                                    <div key={b.id} style={{display:'flex', justifyContent:'space-between', padding:'5px 0', fontSize:'14px'}}>
                                         <span><b>{b.coach}</b> {b.start}-{b.end}</span><span>{b.type}</span>
                                     </div>
                                 ))}
@@ -174,10 +181,10 @@ function App() {
                 {tab === 'stats' && (
                     <div className="card">
                         {stats.map(([n, h]) => (
-                            <div key={n} style={{display:'flex', alignItems:'center', marginBottom:'12px'}}>
+                            <div key={n} style={{display:'flex', alignItems:'center', marginBottom:'10px'}}>
                                 <div style={{width:'80px', fontSize:'14px'}}>{n}</div>
-                                <div style={{flex:1, background:'#eee', height:'10px', borderRadius:'5px', margin:'0 12px', overflow:'hidden'}}><div style={{height:'100%', background:'#c8651a', width:`${(h/(stats[0][1]||1))*100}%`}}></div></div>
-                                <div style={{width:'50px', textAlign:'right', fontWeight:'700', fontSize:'14px'}}>{h.toFixed(1)}h</div>
+                                <div style={{flex:1, background:'#eee', height:'10px', borderRadius:'5px', margin:'0 10px', overflow:'hidden'}}><div style={{height:'100%', background:'#c8651a', width:`${(h/(stats[0][1]||1))*100}%`}}></div></div>
+                                <div style={{fontWeight:'700'}}>{h.toFixed(1)}h</div>
                             </div>
                         ))}
                     </div>
@@ -185,14 +192,14 @@ function App() {
                 {tab === 'manage' && (
                     <div className="card">
                         <div style={{display:'flex', gap:'10px', marginBottom:'20px'}}>
-                            <input id="addN" className="input-field" style={{marginBottom:0}} placeholder="名字" />
+                            <input id="addN" className="input-field" style={{marginBottom:0}} placeholder="教練名字" />
                             <button className="btn-primary" style={{width:'80px', padding:'10px'}} onClick={()=>{
                                 const v = document.getElementById('addN').value.trim();
-                                if(v && !coaches.includes(v)){ setCoaches([...coaches, v]); document.getElementById('addN').value=''; alert('已新增: '+v); }
-                            }}>新增</button>
+                                if(v && !coaches.includes(v)){ setCoaches([...coaches, v]); document.getElementById('addN').value=''; }
+                            }}>＋新增</button>
                         </div>
-                        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(120px, 1fr))', gap:'10px'}}>
-                            {coaches.map(c => <div key={c} className="btn-ghost" style={{textAlign:'center', display:'flex', justifyContent:'space-between'}}>{c} <span onClick={()=>{ if(confirm(`刪除 ${c}?`)) setCoaches(coaches.filter(x=>x!==c))}}>✕</span></div>)}
+                        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(100px, 1fr))', gap:'10px'}}>
+                            {coaches.map(c => <div key={c} className="btn-ghost" style={{textAlign:'center', display:'flex', justifyContent:'space-between'}}>{c} <span onClick={()=>{if(confirm(`刪除 ${c}?`)) setCoaches(coaches.filter(x=>x!==c))}}>✕</span></div>)}
                         </div>
                     </div>
                 )}
@@ -204,16 +211,18 @@ function App() {
         <div>
             {view === 'coach' && <CoachPage />}
             {view === 'adminLogin' && (
-                <div style={{padding:'100px 20px', maxWidth:'400px', margin:'0 auto'}}>
-                    <div className="card"><input type="password" id="p" className="input-field" placeholder="密碼" />
-                        <button className="btn-primary" onClick={()=>{ if(document.getElementById('p').value===ADMIN_PASSWORD){ setIsAdmin(true); setView('admin'); }else alert('密碼錯誤'); }}>登入</button>
+                <div style={{padding:'80px 20px', maxWidth:'400px', margin:'0 auto'}}>
+                    <div className="card"><h3 style={{marginBottom:'15px', textAlign:'center'}}>管理員登入</h3>
+                        <input type="password" id="p" className="input-field" placeholder="請輸入密碼" />
+                        <button className="btn-primary" onClick={()=>{ if(document.getElementById('p').value===ADMIN_PASSWORD){ setIsLoggedIn(true); setView('admin'); }else alert('密碼錯誤'); }}>登入</button>
                     </div>
                 </div>
             )}
             {view === 'admin' && <AdminDashboard />}
+            
             <div className="nav-bar">
-                <button className={`nav-btn ${view==='coach'?'active':''}`} onClick={()=>setView('coach')}>👤 教練登記</button>
-                <button className={`nav-btn ${view!=='coach'?'active':''}`} onClick={()=>isAdmin?setView('admin'):setView('adminLogin')}>📊 管理後台</button>
+                <button className={`nav-btn ${view==='coach'?'active':''}`} onClick={() => setView('coach')}>👤 教練登記</button>
+                <button className={`nav-btn ${view==='admin' || view==='adminLogin'?'active':''}`} onClick={() => isLoggedIn ? setView('admin') : setView('adminLogin')}>📊 管理後台</button>
             </div>
         </div>
     );
