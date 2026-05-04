@@ -25,7 +25,7 @@ const SHEET_URL="https://script.google.com/macros/s/AKfycbznmXuD5S9WQ8R2Tpb_J0Wx
 const todayStr=()=>new Date().toISOString().split("T")[0];
 const fmt=d=>{if(!d)return"";const[y,m,dd]=d.split("-");return`${y}/${m}/${dd}`};
 const mk=d=>d?.slice(0,7)??"";
-const calcHours=(start,end)=>{const[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);return((eh*60+em)-(sh*60+sm))/60};
+const calcHours=(start,end)=>{if(!start||!end)return 0;const[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);if(isNaN(sh)||isNaN(eh))return 0;return((eh*60+em)-(sh*60+sm))/60};
 const addOneHour=t=>{const[h,m]=t.split(":").map(Number);const nh=h+1;return nh>=24?"23:59":`${String(nh).padStart(2,"0")}:${String(m).padStart(2,"0")}`};
 const BOOKING_KEY="studio_bookings_v1";
 const COACH_KEY="studio_coaches_v1";
@@ -34,8 +34,8 @@ const saveBookings=l=>localStorage.setItem(BOOKING_KEY,JSON.stringify(l));
 const loadCoaches=()=>{try{const s=localStorage.getItem(COACH_KEY);return s?JSON.parse(s):DEFAULT_COACHES}catch{return DEFAULT_COACHES}};
 const saveCoaches=l=>localStorage.setItem(COACH_KEY,JSON.stringify(l));
 async function sync(p){if(!SHEET_URL)return;try{await fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)})}catch(e){}}
-async function fetchBookings(){try{const r=await fetch(SHEET_URL,{method:"GET"});const d=await r.json();if(d.result==="ok")return d.bookings;return[]}catch(e){return[]}}
-const C={bg:"#f7f5f0",surface:"#fff",border:"#e8e3da",text:"#1a1612",muted:"#8a7f72",accent:"#c8651a",accentBg:"#fdf3ea",accentBdr:"#f0c49a",green:"#1a7a4a",greenBg:"#edf7f2",greenBdr:"#a8d9bc",red:"#b91c1c",redBg:"#fef2f2",redBdr:"#fecaca",blue:"#1d4ed8",blueBg:"#eff6ff",blueBdr:"#bfdbfe",purple:"#6d28d9",purpleBg:"#f5f3ff",purpleBdr:"#ddd6fe"};
+async function fetchBookings(){try{const r=await fetch(SHEET_URL+"?t="+Date.now());const d=await r.json();if(d.result==="ok")return d.bookings;return[]}catch(e){return[]}}
+const C={bg:"#f7f5f0",surface:"#fff",border:"#e8e3da",text:"#1a1612",muted:"#8a7f72",accent:"#c8651a",accentBg:"#fdf3ea",accentBdr:"#f0c49a",green:"#1a7a4a",greenBg:"#edf7f2",greenBdr:"#a8d9bc",red:"#b91c1c",redBg:"#fef2f2",redBdr:"#fecaca",blue:"#1d4ed8",blueBg:"#eff6ff",blueBdr:"#bfdbfe",purple:"#6d28d9",purpleBg:"#f5f3ff",purpleBdr:"#ddd6fe",orange:"#c2410c",orangeBg:"#fff7ed",orangeBdr:"#fed7aa"};
 const H="'Georgia','Times New Roman',serif";
 const B="'Helvetica Neue',Helvetica,sans-serif";
 const card={background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:24};
@@ -98,7 +98,7 @@ return<div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"
 </div></div></div>}
 function AdminDashboard({bookings,setBookings,coaches,setCoaches,onLogout}){
 const now=new Date();
-const[tab,setTab]=useState("stats");
+const[tab,setTab]=useState("schedule");
 const[vm,setVm]=useState(`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`);
 const[fc,setFc]=useState("all");const[fs,setFs]=useState("all");
 const[newCoach,setNewCoach]=useState("");const[addErr,setAddErr]=useState("");
@@ -106,6 +106,7 @@ const[loading,setLoading]=useState(false);
 const months=useMemo(()=>[...new Set(bookings.map(b=>mk(b.date)))].sort().reverse(),[bookings]);
 const filtered=useMemo(()=>bookings.filter(b=>mk(b.date)===vm).filter(b=>fc==="all"||b.coach===fc).filter(b=>fs==="all"||b.status===fs).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,vm,fc,fs]);
 const stats=useMemo(()=>{const a=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const m={};for(const b of a){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]={total:0,"一對一":0,"一對二":0};m[b.coach].total+=h;m[b.coach]["一對一"]+=b.type==="一對一"?h:0;m[b.coach]["一對二"]+=b.type==="一對二"?h:0}return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)},[bookings,vm]);
+const dailySchedule=useMemo(()=>{const active=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const days={};for(const b of active){if(!days[b.date])days[b.date]=[];days[b.date].push(b)}return Object.entries(days).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,list])=>{const sorted=list.sort((a,b)=>a.start.localeCompare(b.start));const opener=sorted[0];const closer=sorted[sorted.length-1];return{date,list:sorted,opener,closer}})},[bookings,vm]);
 const ta=filtered.filter(b=>b.status!=="cancelled").reduce((acc,b)=>acc+calcHours(b.start,b.end),0).toFixed(1);
 const tc=filtered.filter(b=>b.status==="cancelled").length;
 const ml=m=>{const[y,mo]=m.split("-");return`${y}年${parseInt(mo)}月`};
@@ -122,13 +123,40 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <button onClick={onLogout} style={btn("ghost","sm")}>登出</button>
 </div>
 </div>
-<div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex"}}>
-{[{key:"stats",label:"📊 預約統計"},{key:"coaches",label:"👥 教練名單"}].map(({key,label})=>(
-<button key={key} onClick={()=>setTab(key)} style={{flex:1,background:"none",border:"none",borderBottom:`3px solid ${tab===key?C.accent:"transparent"}`,padding:"14px 8px",cursor:"pointer",fontSize:13,fontWeight:700,color:tab===key?C.accent:C.muted,fontFamily:B}}>{label}</button>))}
+<div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex",overflowX:"auto"}}>
+{[{key:"schedule",label:"📅 每日班表"},{key:"stats",label:"📊 統計"},{key:"coaches",label:"👥 教練名單"}].map(({key,label})=>(
+<button key={key} onClick={()=>setTab(key)} style={{flex:1,background:"none",border:"none",borderBottom:`3px solid ${tab===key?C.accent:"transparent"}`,padding:"14px 8px",cursor:"pointer",fontSize:13,fontWeight:700,color:tab===key?C.accent:C.muted,fontFamily:B,whiteSpace:"nowrap"}}>{label}</button>))}
 </div>
 <div style={{maxWidth:800,margin:"0 auto",padding:"24px 16px",display:"flex",flexDirection:"column",gap:20}}>
-{tab==="stats"&&<>
 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>{months.length===0?<div style={{fontSize:13,color:C.muted}}>尚無任何紀錄</div>:months.map(m=><button key={m} onClick={()=>setVm(m)} style={{...btn(vm===m?"accent":"ghost","sm"),borderColor:vm===m?C.accent:C.border}}>{ml(m)}</button>)}</div>
+
+{tab==="schedule"&&<>
+{dailySchedule.length===0?<div style={{...card,textAlign:"center",color:C.muted,fontSize:13,padding:"40px 20px"}}>這個月尚無預約紀錄</div>:
+dailySchedule.map(({date,list,opener,closer})=>(
+<div key={date} style={card}>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+<h2 style={{fontFamily:H,fontSize:16,fontWeight:400,color:C.text}}>{fmt(date)}</h2>
+<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.greenBg,color:C.green,border:`1px solid ${C.greenBdr}`}}>🌅 開店：{opener.coach} {opener.start}</span>
+<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.orangeBg,color:C.orange,border:`1px solid ${C.orangeBdr}`}}>🌙 關店：{closer.coach} {closer.end}</span>
+</div>
+</div>
+<div style={{display:"flex",flexDirection:"column",gap:8}}>
+{list.map(b=>(
+<div key={b.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
+<Badge type={b.type} status={b.status}/>
+<div style={{flex:1}}>
+<span style={{fontWeight:700,fontSize:13,color:C.text}}>{b.coach}</span>
+<span style={{fontSize:12,color:C.muted,marginLeft:8}}>{b.start}–{b.end} ({calcHours(b.start,b.end).toFixed(1)}h)</span>
+</div>
+</div>
+))}
+</div>
+</div>
+))}
+</>}
+
+{tab==="stats"&&<>
 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
 {[{label:"有效時數",value:ta,color:C.green,bg:C.greenBg},{label:"取消次數",value:tc,color:C.red,bg:C.redBg},{label:"教練人數",value:stats.length,color:C.blue,bg:C.blueBg}].map(({label,value,color,bg})=><div key={label} style={{...card,background:bg,padding:"16px 20px",border:"none",textAlign:"center"}}><div style={{fontSize:28,fontWeight:700,color}}>{value}</div><div style={{fontSize:11,color,opacity:0.8,marginTop:2}}>{label}</div></div>)}
 </div>
@@ -153,6 +181,7 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <button onClick={()=>hardDelete(b.id)} style={{...btn("ghost","sm"),color:C.red,borderColor:C.redBdr,padding:"4px 8px"}}>🗑</button>
 </div>)}</div>}
 </div></>}
+
 {tab==="coaches"&&<div style={card}>
 <h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:20}}>👥 教練名單管理</h2>
 <div style={{marginBottom:24}}>
