@@ -28,9 +28,10 @@ const fmt=d=>{if(!d||typeof d!=="string"||!d.includes("-"))return d||"";const p=
 const mk=d=>{if(!d||typeof d!=="string")return"";const p=d.split("-");if(p.length<2)return"";return`${p[0]}-${p[1]}`};
 const ml=m=>{if(!m||typeof m!=="string"||!m.includes("-"))return m||"";const p=m.split("-");return`${p[0]}年${parseInt(p[1])}月`};
 const calcHours=(start,end)=>{if(!start||!end||typeof start!=="string"||typeof end!=="string")return 0;const sp=start.split(":");const ep=end.split(":");if(sp.length<2||ep.length<2)return 0;const sh=parseInt(sp[0]),sm=parseInt(sp[1]),eh=parseInt(ep[0]),em=parseInt(ep[1]);if(isNaN(sh)||isNaN(eh))return 0;return((eh*60+em)-(sh*60+sm))/60};
-const addOneHour=t=>{const[h,m]=t.split(":").map(Number);const nh=h+1;return nh>=24?"23:00":`${String(nh).padStart(2,"0")}:${String(m).padStart(2,"0")}`};
-const nowTime=()=>{const n=new Date();return`${String(n.getHours()).padStart(2,"0")}:00`};
-const expandBookings=(coach,date,start,end,type)=>{const slots=[];let[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);while(sh*60+sm<eh*60+em){const ns=sh*60+sm+60<=eh*60+em?sh*60+sm+60:eh*60+em;const s=`${String(sh).padStart(2,"0")}:${String(sm).padStart(2,"0")}`;const e=`${String(Math.floor(ns/60)).padStart(2,"0")}:${String(ns%60).padStart(2,"0")}`;slots.push({id:`${Date.now()}-${s}`,coach,date,start:s,end:e,type,status:"active",createdAt:new Date().toISOString()});sh=Math.floor(ns/60);sm=ns%60}return slots};
+const TIME_SLOTS=Array.from({length:48},(_,i)=>{const h=Math.floor(i/2);const m=i%2===0?"00":"30";return`${String(h).padStart(2,"0")}:${m}`});
+const addHalf=t=>{const[h,m]=t.split(":").map(Number);const total=h*60+m+30;if(total>=24*60)return"23:30";return`${String(Math.floor(total/60)).padStart(2,"0")}:${total%60===0?"00":"30"}`};
+const nowTime=()=>{const n=new Date();const h=n.getHours();const m=n.getMinutes()<30?"00":"30";return`${String(h).padStart(2,"0")}:${m}`};
+const expandBookings=(coach,date,start,end,type)=>{const slots=[];let[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);while(sh*60+sm<eh*60+em){const ns=sh*60+sm+30<=eh*60+em?sh*60+sm+30:eh*60+em;const s=`${String(sh).padStart(2,"0")}:${String(sm).padStart(2,"0")}`;const e=`${String(Math.floor(ns/60)).padStart(2,"0")}:${String(ns%60).padStart(2,"0")}`;slots.push({id:`${Date.now()}-${s}`,coach,date,start:s,end:e,type,status:"active",createdAt:new Date().toISOString()});sh=Math.floor(ns/60);sm=ns%60}return slots};
 const COACH_KEY="studio_coaches_v1";
 const loadCoaches=()=>{try{const s=localStorage.getItem(COACH_KEY);return s?JSON.parse(s):DEFAULT_COACHES}catch{return DEFAULT_COACHES}};
 const saveCoaches=l=>localStorage.setItem(COACH_KEY,JSON.stringify(l));
@@ -48,12 +49,12 @@ function CoachPage({coaches}){
 const[coach,setCoach]=useState("");
 const[date,setDate]=useState(todayStr());
 const[start,setStart]=useState(nowTime());
-const[end,setEnd]=useState(addOneHour(nowTime()));
+const[end,setEnd]=useState(addHalf(nowTime()));
 const[type,setType]=useState("1on1");const[ok,setOk]=useState(false);const[err,setErr]=useState("");
 const[myBookings,setMyBookings]=useState([]);const[loadingMine,setLoadingMine]=useState(false);
 const loadMine=async c=>{if(!c)return;setLoadingMine(true);const all=await fetchBookings();const mine=all.filter(b=>b.coach===c&&b.status!=="cancelled"&&b.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start));setMyBookings(mine);setLoadingMine(false)};
 useEffect(()=>{loadMine(coach)},[coach]);
-const handleStartChange=e=>{setStart(e.target.value);setEnd(addOneHour(e.target.value))};
+const handleStartChange=e=>{setStart(e.target.value);setEnd(addHalf(e.target.value))};
 const submit=async()=>{
 setErr("");
 if(!coach)return setErr("請選擇您的名字");
@@ -62,7 +63,7 @@ if(start>=end)return setErr("結束時間必須晚於開始時間");
 const slots=expandBookings(coach,date,start,end,type==="1on1"?"一對一":"一對二");
 for(const slot of slots){await sync({action:"add",...slot});}
 setOk(true);setTimeout(()=>setOk(false),3000);
-setStart(nowTime());setEnd(addOneHour(nowTime()));setType("1on1");
+setStart(nowTime());setEnd(addHalf(nowTime()));setType("1on1");
 await loadMine(coach);
 };
 const cancel=async id=>{await sync({action:"cancel",id,coach,date,start,end,type,status:"cancelled",createdAt:""});await loadMine(coach)};
@@ -80,15 +81,15 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
 <div><label style={lbl}>開始時間</label>
 <select value={start} onChange={handleStartChange} style={inp}>
-{Array.from({length:24},(_,i)=>`${String(i).padStart(2,"0")}:00`).map(t=><option key={t} value={t}>{t}</option>)}
+{TIME_SLOTS.map(t=><option key={t} value={t}>{t}</option>)}
 </select></div>
 <div><label style={lbl}>結束時間</label>
 <select value={end} onChange={e=>setEnd(e.target.value)} style={inp}>
-{Array.from({length:24},(_,i)=>`${String(i).padStart(2,"0")}:00`).map(t=><option key={t} value={t}>{t}</option>)}
+{TIME_SLOTS.map(t=><option key={t} value={t}>{t}</option>)}
 </select></div>
 </div>
 <div style={{background:C.blueBg,border:`1px solid ${C.blueBdr}`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.blue}}>
-💡 系統會自動將預約拆成每小時一筆，方便個別取消
+💡 系統會自動將預約拆成每30分鐘一筆，方便個別取消
 </div>
 <div><label style={lbl}>上課模式</label>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
