@@ -31,7 +31,33 @@ const calcHours=(start,end)=>{if(!start||!end||typeof start!=="string"||typeof e
 const TIME_SLOTS=Array.from({length:48},(_,i)=>{const h=Math.floor(i/2);const m=i%2===0?"00":"30";return`${String(h).padStart(2,"0")}:${m}`});
 const addHalf=t=>{const[h,m]=t.split(":").map(Number);const total=h*60+m+30;if(total>=24*60)return"23:30";return`${String(Math.floor(total/60)).padStart(2,"0")}:${total%60===0?"00":"30"}`};
 const nowTime=()=>{const n=new Date();const h=n.getHours();const m=n.getMinutes()<30?"00":"30";return`${String(h).padStart(2,"0")}:${m}`};
-const expandBookings=(coach,date,start,end,type)=>{const slots=[];let[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);while(sh*60+sm<eh*60+em){const ns=sh*60+sm+30<=eh*60+em?sh*60+sm+30:eh*60+em;const s=`${String(sh).padStart(2,"0")}:${String(sm).padStart(2,"0")}`;const e=`${String(Math.floor(ns/60)).padStart(2,"0")}:${String(ns%60).padStart(2,"0")}`;slots.push({id:`${Date.now()}-${s}`,coach,date,start:s,end:e,type,status:"active",createdAt:new Date().toISOString()});sh=Math.floor(ns/60);sm=ns%60}return slots};
+const expandBookings=(coach,date,start,end,type)=>{
+  const slots=[];
+  const[sh,sm]=start.split(":").map(Number);
+  const[eh,em]=end.split(":").map(Number);
+  const totalMins=(eh*60+em)-(sh*60+sm);
+  let cur=sh*60+sm;
+  while(cur<eh*60+em){
+    const remaining=(eh*60+em)-cur;
+    let slotMins;
+    if(remaining<=60){
+      slotMins=remaining;
+    } else {
+      const nextHour=cur+60;
+      const afterNext=(eh*60+em)-nextHour;
+      if(afterNext===30){
+        slotMins=90;
+      } else {
+        slotMins=60;
+      }
+    }
+    const s=`${String(Math.floor(cur/60)).padStart(2,"0")}:${String(cur%60).padStart(2,"0")}`;
+    const e=`${String(Math.floor((cur+slotMins)/60)).padStart(2,"0")}:${String((cur+slotMins)%60).padStart(2,"0")}`;
+    slots.push({id:`${Date.now()}-${s}`,coach,date,start:s,end:e,type,status:"active",createdAt:new Date().toISOString()});
+    cur+=slotMins;
+  }
+  return slots;
+};
 const COACH_KEY="studio_coaches_v1";
 const loadCoaches=()=>{try{const s=localStorage.getItem(COACH_KEY);return s?JSON.parse(s):DEFAULT_COACHES}catch{return DEFAULT_COACHES}};
 const saveCoaches=l=>localStorage.setItem(COACH_KEY,JSON.stringify(l));
@@ -89,7 +115,7 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 </select></div>
 </div>
 <div style={{background:C.blueBg,border:`1px solid ${C.blueBdr}`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.blue}}>
-💡 系統會自動將預約拆成每30分鐘一筆，方便個別取消
+💡 每小時自動拆成一筆，1.5小時為一筆，方便個別取消
 </div>
 <div><label style={lbl}>上課模式</label>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
