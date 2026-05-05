@@ -49,8 +49,11 @@ cur+=slotMins;
 return slots;
 };
 const COACH_KEY="studio_coaches_v1";
+const PLAN_KEY="studio_plans_v1";
 const loadCoaches=()=>{try{const s=localStorage.getItem(COACH_KEY);return s?JSON.parse(s):DEFAULT_COACHES}catch{return DEFAULT_COACHES}};
 const saveCoaches=l=>localStorage.setItem(COACH_KEY,JSON.stringify(l));
+const loadPlans=()=>{try{const s=localStorage.getItem(PLAN_KEY);return s?JSON.parse(s):{}}catch{return{}}};
+const savePlans=p=>localStorage.setItem(PLAN_KEY,JSON.stringify(p));
 async function sync(p){if(!SHEET_URL)return;try{await fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)})}catch(e){}}
 async function fetchBookings(){try{const r=await fetch(SHEET_URL+"?t="+Date.now());const d=await r.json();if(d.result==="ok")return d.bookings||[];return[]}catch(e){return[]}}
 const C={bg:"#f7f5f0",surface:"#fff",border:"#e8e3da",text:"#1a1612",muted:"#8a7f72",accent:"#c8651a",accentBg:"#fdf3ea",accentBdr:"#f0c49a",green:"#1a7a4a",greenBg:"#edf7f2",greenBdr:"#a8d9bc",red:"#b91c1c",redBg:"#fef2f2",redBdr:"#fecaca",blue:"#1d4ed8",blueBg:"#eff6ff",blueBdr:"#bfdbfe",purple:"#6d28d9",purpleBg:"#f5f3ff",purpleBdr:"#ddd6fe",orange:"#c2410c",orangeBg:"#fff7ed",orangeBdr:"#fed7aa"};
@@ -152,15 +155,20 @@ const[fc,setFc]=useState("all");const[fs,setFs]=useState("all");
 const[newCoach,setNewCoach]=useState("");const[addErr,setAddErr]=useState("");
 const[loading,setLoading]=useState(false);
 const[bookings,setBookings]=useState([]);
+const[plans,setPlans]=useState(loadPlans);
 const months=useMemo(()=>[...new Set(bookings.map(b=>mk(b.date)).filter(m=>m&&m.includes("-")))].sort().reverse(),[bookings]);
 const filtered=useMemo(()=>bookings.filter(b=>mk(b.date)===vm).filter(b=>fc==="all"||b.coach===fc).filter(b=>fs==="all"||b.status===fs).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,vm,fc,fs]);
 const stats=useMemo(()=>{const a=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const m={};for(const b of a){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]={total:0,"一對一":0,"一對二":0};m[b.coach].total+=h;m[b.coach]["一對一"]+=b.type==="一對一"?h:0;m[b.coach]["一對二"]+=b.type==="一對二"?h:0}return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)},[bookings,vm]);
 const dailySchedule=useMemo(()=>{const active=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const days={};for(const b of active){if(!days[b.date])days[b.date]=[];days[b.date].push(b)}return Object.entries(days).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,list])=>{const sorted=list.sort((a,b)=>a.start.localeCompare(b.start));const totalHours=sorted.reduce((acc,b)=>acc+calcHours(b.start,b.end),0);return{date,list:sorted,opener:sorted[0],closer:sorted[sorted.length-1],totalHours}})},[bookings,vm]);
+const coachUsage=useMemo(()=>{const m={};for(const b of bookings){if(b.status==="cancelled")continue;if(!m[b.coach])m[b.coach]=0;m[b.coach]+=calcHours(b.start,b.end);}return m;},[bookings]);
+const lowStock=useMemo(()=>coaches.filter(c=>{const p=plans[c];if(!p||p.type!=="30堂")return false;const used=coachUsage[c]||0;const remaining=p.purchased-used;return remaining<=5&&remaining>=0;}),[coaches,plans,coachUsage]);
 const ta=filtered.filter(b=>b.status!=="cancelled").reduce((acc,b)=>acc+calcHours(b.start,b.end),0).toFixed(1);
 const tc=filtered.filter(b=>b.status==="cancelled").length;
 const hardDelete=async id=>{if(!window.confirm("確定要永久刪除？"))return;await sync({action:"delete",id});await refresh()};
 const addCoach=()=>{const name=newCoach.trim();if(!name)return setAddErr("請輸入教練名字");if(coaches.includes(name))return setAddErr("此名字已存在");const n=[...coaches,name];setCoaches(n);saveCoaches(n);setNewCoach("");setAddErr("")};
-const removeCoach=name=>{if(!window.confirm(`確定要刪除「${name}」嗎？`))return;const n=coaches.filter(c=>c!==name);setCoaches(n);saveCoaches(n)};
+const removeCoach=name=>{if(!window.confirm(`確定要刪除「${name}」嗎？`))return;const n=coaches.filter(c=>c!==name);setCoaches(n);saveCoaches(n);const p={...plans};delete p[name];setPlans(p);savePlans(p)};
+const setPlan=(coach,type)=>{const p={...plans,[coach]:{...plans[coach],type,purchased:type==="30堂"?(plans[coach]?.purchased||30):0}};setPlans(p);savePlans(p)};
+const addPurchase=(coach)=>{const p={...plans,[coach]:{...plans[coach],type:"30堂",purchased:(plans[coach]?.purchased||0)+30}};setPlans(p);savePlans(p)};
 const refresh=async()=>{setLoading(true);const data=await fetchBookings();setBookings(data);setLoading(false)};
 useEffect(()=>{refresh()},[]);
 return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
@@ -172,10 +180,14 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 </div>
 </div>
 <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex"}}>
-{[{key:"schedule",label:"📅 每日班表"},{key:"stats",label:"📊 統計"},{key:"coaches",label:"👥 教練名單"}].map(({key,label})=>(
-<button key={key} onClick={()=>setTab(key)} style={{flex:1,background:"none",border:"none",borderBottom:`3px solid ${tab===key?C.accent:"transparent"}`,padding:"14px 4px",cursor:"pointer",fontSize:12,fontWeight:700,color:tab===key?C.accent:C.muted,fontFamily:B,whiteSpace:"nowrap"}}>{label}</button>))}
+{[{key:"schedule",label:"📅 班表"},{key:"stats",label:"📊 統計"},{key:"coaches",label:"👥 教練"},{key:"plans",label:"💳 方案"}].map(({key,label})=>(
+<button key={key} onClick={()=>setTab(key)} style={{flex:1,background:"none",border:"none",borderBottom:`3px solid ${tab===key?C.accent:"transparent"}`,padding:"12px 4px",cursor:"pointer",fontSize:11,fontWeight:700,color:tab===key?C.accent:C.muted,fontFamily:B,whiteSpace:"nowrap"}}>{label}</button>))}
 </div>
 <div style={{maxWidth:800,margin:"0 auto",padding:"24px 16px",display:"flex",flexDirection:"column",gap:20}}>
+{lowStock.length>0&&<div style={{background:C.redBg,border:`1px solid ${C.redBdr}`,borderRadius:12,padding:"16px 20px"}}>
+<div style={{fontSize:13,fontWeight:700,color:C.red,marginBottom:10}}>⚠️ 以下教練堂數即將用完</div>
+{lowStock.map(c=>{const used=coachUsage[c]||0;const remaining=(plans[c]?.purchased||0)-used;return<div key={c} style={{fontSize:13,color:C.red,marginBottom:4}}>• {c}：剩餘 <b>{remaining.toFixed(1)}</b> 堂</div>})}
+</div>}
 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
 {months.length===0?<div style={{fontSize:13,color:C.muted}}>尚無任何紀錄</div>:months.map(m=><button key={m} onClick={()=>setVm(m)} style={{...btn(vm===m?"accent":"ghost","sm"),borderColor:vm===m?C.accent:C.border}}>{ml(m)}</button>)}
 </div>
@@ -213,7 +225,7 @@ dailySchedule.map(({date,list,opener,closer,totalHours})=>(
 {stats.map(([c,s])=><div key={c} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
 <div style={{width:80,fontWeight:700,fontSize:14,color:C.text}}>{c}</div>
 <div style={{flex:1}}><div style={{height:8,borderRadius:4,background:C.border,overflow:"hidden"}}><div style={{height:"100%",borderRadius:4,width:`${(s.total/(stats[0]?.[1].total||1))*100}%`,background:`linear-gradient(90deg,${C.accent},#e8893c)`}}/></div></div>
-<div style={{fontSize:13,color:C.muted,minWidth:120,textAlign:"right"}}><span style={{fontWeight:700,color:C.text,fontSize:16}}>{s.total.toFixed(1)}</span><span style={{fontSize:11,marginLeft:6}}>小時</span><span style={{marginLeft:8,fontSize:11}}>(1:1 {s["一對一"].toFixed(1)}h / 1:2 {s["一對二"].toFixed(1)}h)</span></div>
+<div style={{fontSize:13,color:C.muted,minWidth:120,textAlign:"right"}}><span style={{fontWeight:700,color:C.text,fontSize:16}}>{s.total.toFixed(1)}</span><span style={{fontSize:11,marginLeft:6}}>堂</span><span style={{marginLeft:8,fontSize:11}}>(1:1 {s["一對一"].toFixed(1)} / 1:2 {s["一對二"].toFixed(1)})</span></div>
 </div>)}</div></div>}
 <div style={card}>
 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
@@ -239,13 +251,48 @@ dailySchedule.map(({date,list,opener,closer,totalHours})=>(
 </div>
 {addErr&&<div style={{color:C.red,fontSize:12,marginTop:6}}>⚠ {addErr}</div>}
 </div>
-<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:8}}>
-{coaches.map(c=><div key={c} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px"}}>
+<div style={{display:"flex",flexDirection:"column",gap:8}}>
+{coaches.map(c=>{const p=plans[c];const isPackage=p?.type==="30堂";const used=coachUsage[c]||0;const remaining=isPackage?(p.purchased-used):null;const low=isPackage&&remaining<=5;
+return<div key={c} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg,border:`1px solid ${low?C.red:C.border}`,borderRadius:8,padding:"10px 14px",gap:8,flexWrap:"wrap"}}>
+<div style={{display:"flex",alignItems:"center",gap:8}}>
 <span style={{fontSize:13,fontWeight:700,color:C.text}}>{c}</span>
-<button onClick={()=>removeCoach(c)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:18,lineHeight:1,padding:"0 0 0 8px"}}>×</button>
-</div>)}
+{isPackage&&<span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:4,background:C.accentBg,color:C.accent,border:`1px solid ${C.accentBdr}`}}>30堂</span>}
+{!isPackage&&p?.type==="單次"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:4,background:C.blueBg,color:C.blue,border:`1px solid ${C.blueBdr}`}}>單次</span>}
+{low&&<span style={{fontSize:10,fontWeight:700,color:C.red}}>⚠️ 剩{remaining?.toFixed(1)}堂</span>}
+</div>
+<button onClick={()=>removeCoach(c)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:18}}>×</button>
+</div>})}
 </div>
 <div style={{marginTop:16,fontSize:12,color:C.muted}}>共 {coaches.length} 位教練</div>
+</div>}
+{tab==="plans"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+<h2 style={{fontFamily:H,fontSize:16,fontWeight:400}}>💳 教練方案管理</h2>
+{coaches.filter(c=>c!=="單次場租").map(c=>{const p=plans[c];const isPackage=p?.type==="30堂";const used=coachUsage[c]||0;const remaining=isPackage?(p.purchased-used):null;const low=isPackage&&remaining!==null&&remaining<=5;
+return<div key={c} style={{...card,border:`1px solid ${low?C.red:C.border}`}}>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
+<span style={{fontSize:14,fontWeight:700,color:C.text}}>{c}</span>
+{low&&<span style={{fontSize:11,fontWeight:700,color:C.red}}>⚠️ 即將用完</span>}
+</div>
+<div style={{display:"flex",gap:8,marginBottom:isPackage?12:0}}>
+<button onClick={()=>setPlan(c,"30堂")} style={{...btn(isPackage?"accent":"ghost","sm"),flex:1,justifyContent:"center"}}>🟠 30堂方案</button>
+<button onClick={()=>setPlan(c,"單次")} style={{...btn(!isPackage&&p?.type==="單次"?"accent":"ghost","sm"),flex:1,justifyContent:"center"}}>🔵 單次300</button>
+</div>
+{isPackage&&<div style={{background:C.bg,borderRadius:8,padding:"12px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+<div>
+<div style={{fontSize:12,color:C.muted}}>已購買</div>
+<div style={{fontSize:18,fontWeight:700,color:C.text}}>{p.purchased} 堂</div>
+</div>
+<div>
+<div style={{fontSize:12,color:C.muted}}>已使用</div>
+<div style={{fontSize:18,fontWeight:700,color:C.text}}>{used.toFixed(1)} 堂</div>
+</div>
+<div>
+<div style={{fontSize:12,color:C.muted}}>剩餘</div>
+<div style={{fontSize:18,fontWeight:700,color:low?C.red:C.green}}>{remaining?.toFixed(1)} 堂</div>
+</div>
+<button onClick={()=>addPurchase(c)} style={btn("green","sm")}>＋ 再買30堂</button>
+</div>}
+</div>})}
 </div>}
 </div></div>}
 function App(){
