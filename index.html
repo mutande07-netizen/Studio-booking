@@ -19,7 +19,7 @@ button:hover{opacity:0.85}
 <div id="root"></div>
 <script type="text/babel">
 const{useState,useMemo,useEffect}=React;
-const DEFAULT_COACHES=["Jessica","AJ","Kai","Wendy","Joy91","Amy","YY","NoNo(Jackie)","Roger","Ray","Calvin","Min","小六Six","Rita","Emma","Emily","2K","Ting","Tim","志嘉Ethan","Kevin","Jojo","Taidy","Myriam","Leann","Chang","柯","Vick","Lewin綸","卿哥","Lai小賴","Sherry","阿鳥/苡慈","Bailey(杯裡)","詠樺","Gary","丁丹","Mark","Linda","Billy","雲翔","GREEN","ERIC","Elvis","又玄","John","Rena","Mia","Joe","單次場租"];
+const DEFAULT_COACHES=["Jessica","AJ","Kai","Wendy","Joy91","Amy","YY","NoNo(Jackie)","Roger","Ray","Calvin","Min","小六Six","Rita","Emma","Emily","2K","Ting","Tim","志嘉Ethan","Kevin","Jojo","Taidy","Myriam","Leann","Chang","柯","Vick","Lewin綸","卿哥","Lai小賴","Sherry","阿鳥/苡慈","Bailey(杯裡)","詠樺","Gary","丁丹","Mark","Linda","Billy","雲翔","GREEN","ERIC","Elvis","又玄","John","Rena","Mia","Joe","單次場租","Bruce Lee","Leo"];
 const ADMIN_PASSWORD="fp16888";
 const SHEET_URL="https://script.google.com/macros/s/AKfycbznmXuD5S9WQ8R2Tpb_J0Wxy62FzzAiJXmihQ0v-7GX14C_vfsfukUnmqbUsv_zJ-mv/exec";
 const todayStr=()=>{const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`};
@@ -32,31 +32,21 @@ const TIME_SLOTS=Array.from({length:48},(_,i)=>{const h=Math.floor(i/2);const m=
 const addHalf=t=>{const[h,m]=t.split(":").map(Number);const total=h*60+m+30;if(total>=24*60)return"23:30";return`${String(Math.floor(total/60)).padStart(2,"0")}:${total%60===0?"00":"30"}`};
 const nowTime=()=>{const n=new Date();const h=n.getHours();const m=n.getMinutes()<30?"00":"30";return`${String(h).padStart(2,"0")}:${m}`};
 const expandBookings=(coach,date,start,end,type)=>{
-  const slots=[];
-  const[sh,sm]=start.split(":").map(Number);
-  const[eh,em]=end.split(":").map(Number);
-  const totalMins=(eh*60+em)-(sh*60+sm);
-  let cur=sh*60+sm;
-  while(cur<eh*60+em){
-    const remaining=(eh*60+em)-cur;
-    let slotMins;
-    if(remaining<=60){
-      slotMins=remaining;
-    } else {
-      const nextHour=cur+60;
-      const afterNext=(eh*60+em)-nextHour;
-      if(afterNext===30){
-        slotMins=90;
-      } else {
-        slotMins=60;
-      }
-    }
-    const s=`${String(Math.floor(cur/60)).padStart(2,"0")}:${String(cur%60).padStart(2,"0")}`;
-    const e=`${String(Math.floor((cur+slotMins)/60)).padStart(2,"0")}:${String((cur+slotMins)%60).padStart(2,"0")}`;
-    slots.push({id:`${Date.now()}-${s}`,coach,date,start:s,end:e,type,status:"active",createdAt:new Date().toISOString()});
-    cur+=slotMins;
-  }
-  return slots;
+const slots=[];
+const[sh,sm]=start.split(":").map(Number);
+const[eh,em]=end.split(":").map(Number);
+let cur=sh*60+sm;
+while(cur<eh*60+em){
+const remaining=(eh*60+em)-cur;
+let slotMins;
+if(remaining<=60){slotMins=remaining;}
+else{const afterNext=(eh*60+em)-(cur+60);if(afterNext===30){slotMins=90;}else{slotMins=60;}}
+const s=`${String(Math.floor(cur/60)).padStart(2,"0")}:${String(cur%60).padStart(2,"0")}`;
+const e=`${String(Math.floor((cur+slotMins)/60)).padStart(2,"0")}:${String((cur+slotMins)%60).padStart(2,"0")}`;
+slots.push({id:`${Date.now()}-${s}`,coach,date,start:s,end:e,type,status:"active",createdAt:new Date().toISOString()});
+cur+=slotMins;
+}
+return slots;
 };
 const COACH_KEY="studio_coaches_v1";
 const loadCoaches=()=>{try{const s=localStorage.getItem(COACH_KEY);return s?JSON.parse(s):DEFAULT_COACHES}catch{return DEFAULT_COACHES}};
@@ -86,6 +76,8 @@ setErr("");
 if(!coach)return setErr("請選擇您的名字");
 if(!date)return setErr("請選擇日期");
 if(start>=end)return setErr("結束時間必須晚於開始時間");
+const totalMins=(()=>{const[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);return(eh*60+em)-(sh*60+sm)})();
+if(totalMins%60!==0&&totalMins%90!==0){return setErr("只能預約整數小時或1.5小時（如1h、1.5h、2h、3h...）");}
 const slots=expandBookings(coach,date,start,end,type==="1on1"?"一對一":"一對二");
 for(const slot of slots){await sync({action:"add",...slot});}
 setOk(true);setTimeout(()=>setOk(false),3000);
@@ -163,7 +155,7 @@ const[bookings,setBookings]=useState([]);
 const months=useMemo(()=>[...new Set(bookings.map(b=>mk(b.date)).filter(m=>m&&m.includes("-")))].sort().reverse(),[bookings]);
 const filtered=useMemo(()=>bookings.filter(b=>mk(b.date)===vm).filter(b=>fc==="all"||b.coach===fc).filter(b=>fs==="all"||b.status===fs).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,vm,fc,fs]);
 const stats=useMemo(()=>{const a=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const m={};for(const b of a){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]={total:0,"一對一":0,"一對二":0};m[b.coach].total+=h;m[b.coach]["一對一"]+=b.type==="一對一"?h:0;m[b.coach]["一對二"]+=b.type==="一對二"?h:0}return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)},[bookings,vm]);
-const dailySchedule=useMemo(()=>{const active=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const days={};for(const b of active){if(!days[b.date])days[b.date]=[];days[b.date].push(b)}return Object.entries(days).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,list])=>{const sorted=list.sort((a,b)=>a.start.localeCompare(b.start));return{date,list:sorted,opener:sorted[0],closer:sorted[sorted.length-1]}})},[bookings,vm]);
+const dailySchedule=useMemo(()=>{const active=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const days={};for(const b of active){if(!days[b.date])days[b.date]=[];days[b.date].push(b)}return Object.entries(days).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,list])=>{const sorted=list.sort((a,b)=>a.start.localeCompare(b.start));const totalHours=sorted.reduce((acc,b)=>acc+calcHours(b.start,b.end),0);return{date,list:sorted,opener:sorted[0],closer:sorted[sorted.length-1],totalHours}})},[bookings,vm]);
 const ta=filtered.filter(b=>b.status!=="cancelled").reduce((acc,b)=>acc+calcHours(b.start,b.end),0).toFixed(1);
 const tc=filtered.filter(b=>b.status==="cancelled").length;
 const hardDelete=async id=>{if(!window.confirm("確定要永久刪除？"))return;await sync({action:"delete",id});await refresh()};
@@ -190,14 +182,15 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 {tab==="schedule"&&<>
 {loading?<div style={{...card,textAlign:"center",color:C.muted,padding:"40px"}}>載入中...</div>:
 dailySchedule.length===0?<div style={{...card,textAlign:"center",color:C.muted,fontSize:13,padding:"40px 20px"}}>這個月尚無預約紀錄</div>:
-dailySchedule.map(({date,list,opener,closer})=>(
+dailySchedule.map(({date,list,opener,closer,totalHours})=>(
 <div key={date} style={card}>
-<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:8}}>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
 <h2 style={{fontFamily:H,fontSize:16,fontWeight:400,color:C.text}}>{fmt(date)}</h2>
-<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+<span style={{fontSize:12,fontWeight:700,color:C.accent}}>共 {totalHours.toFixed(1)} 小時</span>
+</div>
+<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
 <span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.greenBg,color:C.green,border:`1px solid ${C.greenBdr}`}}>🌅 開店：{opener.coach} {opener.start}</span>
 <span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.orangeBg,color:C.orange,border:`1px solid ${C.orangeBdr}`}}>🌙 關店：{closer.coach} {closer.end}</span>
-</div>
 </div>
 <div style={{display:"flex",flexDirection:"column",gap:8}}>
 {list.map(b=>(
