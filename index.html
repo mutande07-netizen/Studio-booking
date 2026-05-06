@@ -31,6 +31,7 @@ const calcHours=(start,end)=>{if(!start||!end||typeof start!=="string"||typeof e
 const TIME_SLOTS=Array.from({length:48},(_,i)=>{const h=Math.floor(i/2);const m=i%2===0?"00":"30";return`${String(h).padStart(2,"0")}:${m}`});
 const addHalf=t=>{const[h,m]=t.split(":").map(Number);const total=h*60+m+30;if(total>=24*60)return"23:30";return`${String(Math.floor(total/60)).padStart(2,"0")}:${total%60===0?"00":"30"}`};
 const nowTime=()=>{const n=new Date();const h=n.getHours();const m=n.getMinutes()<30?"00":"30";return`${String(h).padStart(2,"0")}:${m}`};
+const addDays=(dateStr,days)=>{const d=new Date(dateStr);d.setDate(d.getDate()+days);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`};
 const expandBookings=(coach,date,start,end,type)=>{
 const slots=[];
 const[sh,sm]=start.split(":").map(Number);
@@ -145,6 +146,7 @@ return<div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"
 function AdminDashboard({onLogout}){
 const[tab,setTab]=useState("schedule");
 const[vm,setVm]=useState(thisMonth());
+const[viewDate,setViewDate]=useState(todayStr());
 const[fc,setFc]=useState("all");const[fs,setFs]=useState("all");
 const[newCoach,setNewCoach]=useState("");const[addErr,setAddErr]=useState("");
 const[loading,setLoading]=useState(false);
@@ -154,7 +156,7 @@ const[plans,setPlans]=useState({});
 const months=useMemo(()=>[...new Set(bookings.map(b=>mk(b.date)).filter(m=>m&&m.includes("-")))].sort().reverse(),[bookings]);
 const filtered=useMemo(()=>bookings.filter(b=>mk(b.date)===vm).filter(b=>fc==="all"||b.coach===fc).filter(b=>fs==="all"||b.status===fs).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,vm,fc,fs]);
 const stats=useMemo(()=>{const a=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const m={};for(const b of a){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]={total:0,"一對一":0,"一對二":0};m[b.coach].total+=h;m[b.coach]["一對一"]+=b.type==="一對一"?h:0;m[b.coach]["一對二"]+=b.type==="一對二"?h:0}return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)},[bookings,vm]);
-const dailySchedule=useMemo(()=>{const active=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const days={};for(const b of active){if(!days[b.date])days[b.date]=[];days[b.date].push(b)}return Object.entries(days).sort((a,b)=>a[0].localeCompare(b[0])).map(([date,list])=>{const sorted=list.sort((a,b)=>a.start.localeCompare(b.start));const totalHours=sorted.reduce((acc,b)=>acc+calcHours(b.start,b.end),0);return{date,list:sorted,opener:sorted[0],closer:sorted[sorted.length-1],totalHours}})},[bookings,vm]);
+const dayBookings=useMemo(()=>{const list=bookings.filter(b=>b.date===viewDate&&b.status!=="cancelled").sort((a,b)=>a.start.localeCompare(b.start));const totalHours=list.reduce((acc,b)=>acc+calcHours(b.start,b.end),0);const opener=list[0];const closer=list[list.length-1];return{list,totalHours,opener,closer}},[bookings,viewDate]);
 const coachUsage=useMemo(()=>{const m={};for(const b of bookings){if(b.status==="cancelled")continue;if(!m[b.coach])m[b.coach]=0;m[b.coach]+=calcHours(b.start,b.end);}return m;},[bookings]);
 const getRemainder=(c)=>{const p=plans[c];if(!p||p.type!=="30堂")return null;if(p.manualRemaining!==null&&p.manualRemaining!==undefined)return p.manualRemaining;return(p.purchased||0)-(coachUsage[c]||0);};
 const lowStock=useMemo(()=>coaches.filter(c=>{const r=getRemainder(c);return r!==null&&r<=5&&r>=0;}),[coaches,plans,coachUsage]);
@@ -168,6 +170,7 @@ const addPurchase=async(coach)=>{const p={...plans,[coach]:{...plans[coach],type
 const setManualRemaining=async(coach,val)=>{const p={...plans,[coach]:{...plans[coach],manualRemaining:val===null?null:Number(val)}};setPlans(p);await sync({action:"savePlans",plans:p})};
 const refresh=async()=>{setLoading(true);const d=await fetchAll();setBookings(d.bookings||[]);if(d.coaches&&d.coaches.length>0)setCoaches(d.coaches);if(d.plans&&Object.keys(d.plans).length>0)setPlans(d.plans);setLoading(false)};
 useEffect(()=>{refresh()},[]);
+const isToday=viewDate===todayStr();
 return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:10}}>
 <h1 style={{fontFamily:H,fontSize:20,fontWeight:400}}>管理員後台</h1>
@@ -185,24 +188,34 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={{fontSize:13,fontWeight:700,color:C.red,marginBottom:10}}>⚠️ 以下教練堂數即將用完</div>
 {lowStock.map(c=>{const r=getRemainder(c);return<div key={c} style={{fontSize:13,color:C.red,marginBottom:4}}>• {c}：剩餘 <b>{r?.toFixed(1)}</b> 堂</div>})}
 </div>}
-<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-{months.length===0?<div style={{fontSize:13,color:C.muted}}>尚無任何紀錄</div>:months.map(m=><button key={m} onClick={()=>setVm(m)} style={{...btn(vm===m?"accent":"ghost","sm"),borderColor:vm===m?C.accent:C.border}}>{ml(m)}</button>)}
-</div>
+
 {tab==="schedule"&&<>
+<div style={{...card,padding:"16px 20px"}}>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+<button onClick={()=>setViewDate(addDays(viewDate,-1))} style={{...btn("ghost","sm"),fontSize:18,padding:"6px 14px"}}>‹</button>
+<div style={{textAlign:"center"}}>
+<div style={{fontSize:16,fontWeight:700,color:C.text}}>{fmt(viewDate)}</div>
+{isToday&&<div style={{fontSize:11,color:C.accent,fontWeight:700}}>今天</div>}
+</div>
+<button onClick={()=>setViewDate(addDays(viewDate,1))} style={{...btn("ghost","sm"),fontSize:18,padding:"6px 14px"}}>›</button>
+</div>
+{!isToday&&<div style={{textAlign:"center",marginTop:10}}>
+<button onClick={()=>setViewDate(todayStr())} style={{...btn("accent","sm")}}>回到今天</button>
+</div>}
+</div>
 {loading?<div style={{...card,textAlign:"center",color:C.muted,padding:"40px"}}>載入中...</div>:
-dailySchedule.length===0?<div style={{...card,textAlign:"center",color:C.muted,fontSize:13,padding:"40px 20px"}}>這個月尚無預約紀錄</div>:
-dailySchedule.map(({date,list,opener,closer,totalHours})=>(
-<div key={date} style={card}>
+dayBookings.list.length===0?<div style={{...card,textAlign:"center",color:C.muted,fontSize:13,padding:"40px 20px"}}>這天尚無預約紀錄</div>:
+<div style={card}>
 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-<h2 style={{fontFamily:H,fontSize:16,fontWeight:400,color:C.text}}>{fmt(date)}</h2>
-<span style={{fontSize:12,fontWeight:700,color:C.accent}}>共 {totalHours.toFixed(1)} 小時</span>
+<h2 style={{fontFamily:H,fontSize:16,fontWeight:400,color:C.text}}>{fmt(viewDate)}</h2>
+<span style={{fontSize:12,fontWeight:700,color:C.accent}}>共 {dayBookings.totalHours.toFixed(1)} 小時</span>
 </div>
 <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
-<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.greenBg,color:C.green,border:`1px solid ${C.greenBdr}`}}>🌅 開店：{opener.coach} {opener.start}</span>
-<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.orangeBg,color:C.orange,border:`1px solid ${C.orangeBdr}`}}>🌙 關店：{closer.coach} {closer.end}</span>
+{dayBookings.opener&&<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.greenBg,color:C.green,border:`1px solid ${C.greenBdr}`}}>🌅 開店：{dayBookings.opener.coach} {dayBookings.opener.start}</span>}
+{dayBookings.closer&&<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.orangeBg,color:C.orange,border:`1px solid ${C.orangeBdr}`}}>🌙 關店：{dayBookings.closer.coach} {dayBookings.closer.end}</span>}
 </div>
 <div style={{display:"flex",flexDirection:"column",gap:8}}>
-{list.map(b=>(
+{dayBookings.list.map(b=>(
 <div key={b.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
 <Badge type={b.type} status={b.status}/>
 <div style={{flex:1}}>
@@ -211,9 +224,13 @@ dailySchedule.map(({date,list,opener,closer,totalHours})=>(
 </div>
 </div>))}
 </div>
-</div>))}
+</div>}
 </>}
+
 {tab==="stats"&&<>
+<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+{months.length===0?<div style={{fontSize:13,color:C.muted}}>尚無任何紀錄</div>:months.map(m=><button key={m} onClick={()=>setVm(m)} style={{...btn(vm===m?"accent":"ghost","sm"),borderColor:vm===m?C.accent:C.border}}>{ml(m)}</button>)}
+</div>
 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
 {[{label:"有效時數",value:ta,color:C.green,bg:C.greenBg},{label:"取消次數",value:tc,color:C.red,bg:C.redBg},{label:"教練人數",value:stats.length,color:C.blue,bg:C.blueBg}].map(({label,value,color,bg})=><div key={label} style={{...card,background:bg,padding:"16px 20px",border:"none",textAlign:"center"}}><div style={{fontSize:28,fontWeight:700,color}}>{value}</div><div style={{fontSize:11,color,opacity:0.8,marginTop:2}}>{label}</div></div>)}
 </div>
@@ -238,6 +255,7 @@ dailySchedule.map(({date,list,opener,closer,totalHours})=>(
 <button onClick={()=>hardDelete(b.id)} style={{...btn("ghost","sm"),color:C.red,borderColor:C.redBdr,padding:"4px 8px"}}>🗑</button>
 </div>)}</div>}
 </div></>}
+
 {tab==="coaches"&&<div style={card}>
 <h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:20}}>👥 教練名單管理</h2>
 <div style={{marginBottom:24}}>
@@ -262,6 +280,7 @@ return<div key={c} style={{display:"flex",alignItems:"center",justifyContent:"sp
 </div>
 <div style={{marginTop:16,fontSize:12,color:C.muted}}>共 {coaches.length} 位教練</div>
 </div>}
+
 {tab==="plans"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
 <h2 style={{fontFamily:H,fontSize:16,fontWeight:400}}>💳 教練方案管理</h2>
 {coaches.filter(c=>c!=="單次場租").map(c=>{const p=plans[c];const isPackage=p?.type==="30堂";const r=getRemainder(c);const low=isPackage&&r!==null&&r<=5;
