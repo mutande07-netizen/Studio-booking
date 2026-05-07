@@ -51,7 +51,14 @@ return slots;
 };
 async function sync(p){if(!SHEET_URL)return;try{await fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)})}catch(e){}}
 async function fetchAll(){try{const r=await fetch(SHEET_URL+"?t="+Date.now());const d=await r.json();if(d.result==="ok")return d;return{bookings:[],coaches:[],plans:{}}}catch(e){return{bookings:[],coaches:[],plans:{}}}}
-const C={bg:"#f7f5f0",surface:"#fff",border:"#e8e3da",text:"#1a1612",muted:"#8a7f72",accent:"#c8651a",accentBg:"#fdf3ea",accentBdr:"#f0c49a",green​​​​​​​​​​​​​​​​
+const C={bg:"#f7f5f0",surface:"#fff",border:"#e8e3da",text:"#1a1612",muted:"#8a7f72",accent:"#c8651a",accentBg:"#fdf3ea",accentBdr:"#f0c49a",green:"#1a7a4a",greenBg:"#edf7f2",greenBdr:"#a8d9bc",red:"#b91c1c",redBg:"#fef2f2",redBdr:"#fecaca",blue:"#1d4ed8",blueBg:"#eff6ff",blueBdr:"#bfdbfe",purple:"#6d28d9",purpleBg:"#f5f3ff",purpleBdr:"#ddd6fe",orange:"#c2410c",orangeBg:"#fff7ed",orangeBdr:"#fed7aa"};
+const H="'Georgia','Times New Roman',serif";
+const B="'Helvetica Neue',Helvetica,sans-serif";
+const card={background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:24};
+const lbl={display:"block",fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:C.muted,marginBottom:6};
+const inp={width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,padding:"10px 12px",fontFamily:B,fontSize:14,outline:"none",boxSizing:"border-box"};
+const btn=(c="accent",s="md")=>({background:c==="accent"?C.accent:c==="ghost"?"transparent":c==="red"?C.red:C.green,color:c==="ghost"?C.muted:"#fff",border:c==="ghost"?`1px solid ${C.border}`:"none",borderRadius:8,padding:s==="sm"?"6px 12px":s==="lg"?"14px 24px":"10px 16px",fontSize:s==="sm"?12:s==="lg"?15:13,fontWeight:700,fontFamily:B,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,transition:"opacity 0.15s"});
+function Badge({type,status}){const can=status==="cancelled",is1=type==="一對一";return<span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:4,background:can?C.redBg:is1?C.greenBg:C.purpleBg,color:can?C.red:is1?C.green:C.purple,border:`1px solid ${can?C.redBdr:is1?C.greenBdr:C.purpleBdr}`,textDecoration:can?"line-through":"none",whiteSpace:"nowrap"}}>{can?"已取消":type}</span>}
 function CoachPage({coaches}){
 const[coach,setCoach]=useState("");
 const[date,setDate]=useState(todayStr());
