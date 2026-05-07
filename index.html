@@ -51,14 +51,7 @@ return slots;
 };
 async function sync(p){if(!SHEET_URL)return;try{await fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)})}catch(e){}}
 async function fetchAll(){try{const r=await fetch(SHEET_URL+"?t="+Date.now());const d=await r.json();if(d.result==="ok")return d;return{bookings:[],coaches:[],plans:{}}}catch(e){return{bookings:[],coaches:[],plans:{}}}}
-const C={bg:"#f7f5f0",surface:"#fff",border:"#e8e3da",text:"#1a1612",muted:"#8a7f72",accent:"#c8651a",accentBg:"#fdf3ea",accentBdr:"#f0c49a",green:"#1a7a4a",greenBg:"#edf7f2",greenBdr:"#a8d9bc",red:"#b91c1c",redBg:"#fef2f2",redBdr:"#fecaca",blue:"#1d4ed8",blueBg:"#eff6ff",blueBdr:"#bfdbfe",purple:"#6d28d9",purpleBg:"#f5f3ff",purpleBdr:"#ddd6fe",orange:"#c2410c",orangeBg:"#fff7ed",orangeBdr:"#fed7aa"};
-const H="'Georgia','Times New Roman',serif";
-const B="'Helvetica Neue',Helvetica,sans-serif";
-const card={background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:24};
-const lbl={display:"block",fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:C.muted,marginBottom:6};
-const inp={width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,padding:"10px 12px",fontFamily:B,fontSize:14,outline:"none",boxSizing:"border-box"};
-const btn=(c="accent",s="md")=>({background:c==="accent"?C.accent:c==="ghost"?"transparent":c==="red"?C.red:C.green,color:c==="ghost"?C.muted:"#fff",border:c==="ghost"?`1px solid ${C.border}`:"none",borderRadius:8,padding:s==="sm"?"6px 12px":s==="lg"?"14px 24px":"10px 16px",fontSize:s==="sm"?12:s==="lg"?15:13,fontWeight:700,fontFamily:B,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,transition:"opacity 0.15s"});
-function Badge({type,status}){const can=status==="cancelled",is1=type==="一對一";return<span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:4,background:can?C.redBg:is1?C.greenBg:C.purpleBg,color:can?C.red:is1?C.green:C.purple,border:`1px solid ${can?C.redBdr:is1?C.greenBdr:C.purpleBdr}`,textDecoration:can?"line-through":"none",whiteSpace:"nowrap"}}>{can?"已取消":type}</span>}
+const C={bg:"#f7f5f0",surface:"#fff",border:"#e8e3da",text:"#1a1612",muted:"#8a7f72",accent:"#c8651a",accentBg:"#fdf3ea",accentBdr:"#f0c49a",green​​​​​​​​​​​​​​​​
 function CoachPage({coaches}){
 const[coach,setCoach]=useState("");
 const[date,setDate]=useState(todayStr());
@@ -156,9 +149,14 @@ const[plans,setPlans]=useState({});
 const months=useMemo(()=>[...new Set(bookings.map(b=>mk(b.date)).filter(m=>m&&m.includes("-")))].sort().reverse(),[bookings]);
 const filtered=useMemo(()=>bookings.filter(b=>mk(b.date)===vm).filter(b=>fc==="all"||b.coach===fc).filter(b=>fs==="all"||b.status===fs).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,vm,fc,fs]);
 const stats=useMemo(()=>{const a=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const m={};for(const b of a){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]={total:0,"一對一":0,"一對二":0};m[b.coach].total+=h;m[b.coach]["一對一"]+=b.type==="一對一"?h:0;m[b.coach]["一對二"]+=b.type==="一對二"?h:0}return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)},[bookings,vm]);
-const dayBookings=useMemo(()=>{const list=bookings.filter(b=>b.date===viewDate&&b.status!=="cancelled").sort((a,b)=>a.start.localeCompare(b.start));const totalHours=list.reduce((acc,b)=>acc+calcHours(b.start,b.end),0);const opener=list[0];const closer=list[list.length-1];return{list,totalHours,opener,closer}},[bookings,viewDate]);
+const dailyStats=useMemo(()=>{const days={};const active=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");for(const b of active){if(!days[b.date])days[b.date]={};if(!days[b.date][b.coach])days[b.date][b.coach]=0;days[b.date][b.coach]+=calcHours(b.start,b.end);}return Object.entries(days).sort((a,b)=>a[0].localeCompare(b[0]));},[bookings,vm]);
+const dayBookings=useMemo(()=>{const list=bookings.filter(b=>b.date===viewDate&&b.status!=="cancelled").sort((a,b)=>a.start.localeCompare(b.start));const totalHours=list.reduce((acc,b)=>acc+calcHours(b.start,b.end),0);const opener=list[0];const closer=list[list.length-1];
+const timeGroups={};for(const b of list){const key=`${b.start}-${b.end}`;if(!timeGroups[key])timeGroups[key]={start:b.start,end:b.end,coaches:[]};timeGroups[key].coaches.push(b);}
+const groupedList=Object.values(timeGroups).sort((a,b)=>a.start.localeCompare(b.start));
+return{list,totalHours,opener,closer,groupedList}},[bookings,viewDate]);
 const coachUsage=useMemo(()=>{const m={};for(const b of bookings){if(b.status==="cancelled")continue;if(!m[b.coach])m[b.coach]=0;m[b.coach]+=calcHours(b.start,b.end);}return m;},[bookings]);
 const getRemainder=(c)=>{const p=plans[c];if(!p||p.type!=="30堂")return null;if(p.manualRemaining!==null&&p.manualRemaining!==undefined)return p.manualRemaining;return(p.purchased||0)-(coachUsage[c]||0);};
+const getPlanBadge=(c)=>{const p=plans[c];if(!p||!p.type)return null;if(p.type==="30堂")return<span style={{fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:3,background:C.accentBg,color:C.accent,border:`1px solid ${C.accentBdr}`}}>30堂</span>;if(p.type==="單次")return<span style={{fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:3,background:C.blueBg,color:C.blue,border:`1px solid ${C.blueBdr}`}}>單次</span>;return null;};
 const lowStock=useMemo(()=>coaches.filter(c=>{const r=getRemainder(c);return r!==null&&r<=5&&r>=0;}),[coaches,plans,coachUsage]);
 const ta=filtered.filter(b=>b.status!=="cancelled").reduce((acc,b)=>acc+calcHours(b.start,b.end),0).toFixed(1);
 const tc=filtered.filter(b=>b.status==="cancelled").length;
@@ -188,45 +186,49 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={{fontSize:13,fontWeight:700,color:C.red,marginBottom:10}}>⚠️ 以下教練堂數即將用完</div>
 {lowStock.map(c=>{const r=getRemainder(c);return<div key={c} style={{fontSize:13,color:C.red,marginBottom:4}}>• {c}：剩餘 <b>{r?.toFixed(1)}</b> 堂</div>})}
 </div>}
-
 {tab==="schedule"&&<>
 <div style={{...card,padding:"16px 20px"}}>
 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-<button onClick={()=>setViewDate(addDays(viewDate,-1))} style={{...btn("ghost","sm"),fontSize:18,padding:"6px 14px"}}>‹</button>
+<button onClick={()=>setViewDate(addDays(viewDate,-1))} style={{...btn("ghost","sm"),fontSize:20,padding:"4px 16px"}}>‹</button>
 <div style={{textAlign:"center"}}>
 <div style={{fontSize:16,fontWeight:700,color:C.text}}>{fmt(viewDate)}</div>
 {isToday&&<div style={{fontSize:11,color:C.accent,fontWeight:700}}>今天</div>}
 </div>
-<button onClick={()=>setViewDate(addDays(viewDate,1))} style={{...btn("ghost","sm"),fontSize:18,padding:"6px 14px"}}>›</button>
+<button onClick={()=>setViewDate(addDays(viewDate,1))} style={{...btn("ghost","sm"),fontSize:20,padding:"4px 16px"}}>›</button>
 </div>
 {!isToday&&<div style={{textAlign:"center",marginTop:10}}>
-<button onClick={()=>setViewDate(todayStr())} style={{...btn("accent","sm")}}>回到今天</button>
+<button onClick={()=>setViewDate(todayStr())} style={btn("accent","sm")}>回到今天</button>
 </div>}
 </div>
 {loading?<div style={{...card,textAlign:"center",color:C.muted,padding:"40px"}}>載入中...</div>:
 dayBookings.list.length===0?<div style={{...card,textAlign:"center",color:C.muted,fontSize:13,padding:"40px 20px"}}>這天尚無預約紀錄</div>:
 <div style={card}>
 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-<h2 style={{fontFamily:H,fontSize:16,fontWeight:400,color:C.text}}>{fmt(viewDate)}</h2>
-<span style={{fontSize:12,fontWeight:700,color:C.accent}}>共 {dayBookings.totalHours.toFixed(1)} 小時</span>
-</div>
-<div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
 {dayBookings.opener&&<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.greenBg,color:C.green,border:`1px solid ${C.greenBdr}`}}>🌅 開店：{dayBookings.opener.coach} {dayBookings.opener.start}</span>}
 {dayBookings.closer&&<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.orangeBg,color:C.orange,border:`1px solid ${C.orangeBdr}`}}>🌙 關店：{dayBookings.closer.coach} {dayBookings.closer.end}</span>}
 </div>
-<div style={{display:"flex",flexDirection:"column",gap:8}}>
-{dayBookings.list.map(b=>(
-<div key={b.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
+<span style={{fontSize:12,fontWeight:700,color:C.accent}}>共 {dayBookings.totalHours.toFixed(1)} 小時</span>
+</div>
+<div style={{display:"flex",flexDirection:"column",gap:10}}>
+{dayBookings.groupedList.map(group=>(
+<div key={`${group.start}-${group.end}`} style={{background:C.bg,borderRadius:10,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",background:group.coaches.length>=3?C.redBg:group.coaches.length===2?C.accentBg:C.bg,borderBottom:`1px solid ${C.border}`}}>
+<span style={{fontSize:13,fontWeight:700,color:C.text}}>{group.start}–{group.end}</span>
+<span style={{fontSize:12,fontWeight:700,color:group.coaches.length>=3?C.red:group.coaches.length===2?C.accent:C.muted}}>{group.coaches.length} 人</span>
+</div>
+<div style={{padding:"8px 14px",display:"flex",flexWrap:"wrap",gap:8}}>
+{group.coaches.map(b=>(
+<div key={b.id} style={{display:"flex",alignItems:"center",gap:4}}>
 <Badge type={b.type} status={b.status}/>
-<div style={{flex:1}}>
-<span style={{fontWeight:700,fontSize:13,color:C.text}}>{b.coach}</span>
-<span style={{fontSize:12,color:C.muted,marginLeft:8}}>{b.start}–{b.end} ({calcHours(b.start,b.end).toFixed(1)}h)</span>
+<span style={{fontSize:13,fontWeight:700,color:C.text}}>{b.coach}</span>
+{getPlanBadge(b.coach)}
+</div>))}
 </div>
 </div>))}
 </div>
 </div>}
 </>}
-
 {tab==="stats"&&<>
 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
 {months.length===0?<div style={{fontSize:13,color:C.muted}}>尚無任何紀錄</div>:months.map(m=><button key={m} onClick={()=>setVm(m)} style={{...btn(vm===m?"accent":"ghost","sm"),borderColor:vm===m?C.accent:C.border}}>{ml(m)}</button>)}
@@ -234,10 +236,29 @@ dayBookings.list.length===0?<div style={{...card,textAlign:"center",color:C.mute
 <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
 {[{label:"有效時數",value:ta,color:C.green,bg:C.greenBg},{label:"取消次數",value:tc,color:C.red,bg:C.redBg},{label:"教練人數",value:stats.length,color:C.blue,bg:C.blueBg}].map(({label,value,color,bg})=><div key={label} style={{...card,background:bg,padding:"16px 20px",border:"none",textAlign:"center"}}><div style={{fontSize:28,fontWeight:700,color}}>{value}</div><div style={{fontSize:11,color,opacity:0.8,marginTop:2}}>{label}</div></div>)}
 </div>
-{stats.length>0&&<div style={card}><h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:16}}>教練時數統計</h2>
+<div style={card}>
+<h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:16}}>📅 每日明細</h2>
+{dailyStats.length===0?<div style={{textAlign:"center",color:C.muted,fontSize:13,padding:"20px"}}>這個月尚無紀錄</div>:
+dailyStats.map(([date,coachMap])=>(
+<div key={date} style={{marginBottom:16,borderBottom:`1px solid ${C.border}`,paddingBottom:16}}>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+<span style={{fontSize:14,fontWeight:700,color:C.text}}>{fmt(date)}</span>
+<span style={{fontSize:12,color:C.accent,fontWeight:700}}>共 {Object.values(coachMap).reduce((a,b)=>a+b,0).toFixed(1)} 小時</span>
+</div>
+<div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+{Object.entries(coachMap).sort((a,b)=>b[1]-a[1]).map(([coach,hours])=>(
+<div key={coach} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 12px",display:"flex",alignItems:"center",gap:6}}>
+<span style={{fontSize:13,fontWeight:700,color:C.text}}>{coach}</span>
+{getPlanBadge(coach)}
+<span style={{fontSize:12,color:C.muted}}>{hours.toFixed(1)}h</span>
+</div>))}
+</div>
+</div>))}
+</div>
+{stats.length>0&&<div style={card}><h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:16}}>📊 月總量統計</h2>
 <div style={{display:"flex",flexDirection:"column",gap:8}}>
 {stats.map(([c,s])=><div key={c} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
-<div style={{width:80,fontWeight:700,fontSize:14,color:C.text}}>{c}</div>
+<div style={{display:"flex",alignItems:"center",gap:6,width:120}}><span style={{fontWeight:700,fontSize:14,color:C.text}}>{c}</span>{getPlanBadge(c)}</div>
 <div style={{flex:1}}><div style={{height:8,borderRadius:4,background:C.border,overflow:"hidden"}}><div style={{height:"100%",borderRadius:4,width:`${(s.total/(stats[0]?.[1].total||1))*100}%`,background:`linear-gradient(90deg,${C.accent},#e8893c)`}}/></div></div>
 <div style={{fontSize:13,color:C.muted,minWidth:120,textAlign:"right"}}><span style={{fontWeight:700,color:C.text,fontSize:16}}>{s.total.toFixed(1)}</span><span style={{fontSize:11,marginLeft:6}}>堂</span><span style={{marginLeft:8,fontSize:11}}>(1:1 {s["一對一"].toFixed(1)} / 1:2 {s["一對二"].toFixed(1)})</span></div>
 </div>)}</div></div>}
@@ -255,7 +276,6 @@ dayBookings.list.length===0?<div style={{...card,textAlign:"center",color:C.mute
 <button onClick={()=>hardDelete(b.id)} style={{...btn("ghost","sm"),color:C.red,borderColor:C.redBdr,padding:"4px 8px"}}>🗑</button>
 </div>)}</div>}
 </div></>}
-
 {tab==="coaches"&&<div style={card}>
 <h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:20}}>👥 教練名單管理</h2>
 <div style={{marginBottom:24}}>
@@ -271,8 +291,7 @@ dayBookings.list.length===0?<div style={{...card,textAlign:"center",color:C.mute
 return<div key={c} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg,border:`1px solid ${low?C.red:C.border}`,borderRadius:8,padding:"10px 14px",gap:8,flexWrap:"wrap"}}>
 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
 <span style={{fontSize:13,fontWeight:700,color:C.text}}>{c}</span>
-{isPackage&&<span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:4,background:C.accentBg,color:C.accent,border:`1px solid ${C.accentBdr}`}}>30堂</span>}
-{p?.type==="單次"&&<span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:4,background:C.blueBg,color:C.blue,border:`1px solid ${C.blueBdr}`}}>單次</span>}
+{getPlanBadge(c)}
 {low&&<span style={{fontSize:10,fontWeight:700,color:C.red}}>⚠️ 剩{r?.toFixed(1)}堂</span>}
 </div>
 <button onClick={()=>removeCoach(c)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:18}}>×</button>
@@ -280,7 +299,6 @@ return<div key={c} style={{display:"flex",alignItems:"center",justifyContent:"sp
 </div>
 <div style={{marginTop:16,fontSize:12,color:C.muted}}>共 {coaches.length} 位教練</div>
 </div>}
-
 {tab==="plans"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
 <h2 style={{fontFamily:H,fontSize:16,fontWeight:400}}>💳 教練方案管理</h2>
 {coaches.filter(c=>c!=="單次場租").map(c=>{const p=plans[c];const isPackage=p?.type==="30堂";const r=getRemainder(c);const low=isPackage&&r!==null&&r<=5;
@@ -331,4 +349,4 @@ style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"12px 8p
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
-</html> 
+</html>
