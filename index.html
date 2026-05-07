@@ -147,6 +147,7 @@ function AdminDashboard({onLogout}){
 const[tab,setTab]=useState("schedule");
 const[vm,setVm]=useState(thisMonth());
 const[viewDate,setViewDate]=useState(todayStr());
+const[statsDate,setStatsDate]=useState(todayStr());
 const[fc,setFc]=useState("all");const[fs,setFs]=useState("all");
 const[newCoach,setNewCoach]=useState("");const[addErr,setAddErr]=useState("");
 const[loading,setLoading]=useState(false);
@@ -156,7 +157,8 @@ const[plans,setPlans]=useState({});
 const months=useMemo(()=>[...new Set(bookings.map(b=>mk(b.date)).filter(m=>m&&m.includes("-")))].sort().reverse(),[bookings]);
 const filtered=useMemo(()=>bookings.filter(b=>mk(b.date)===vm).filter(b=>fc==="all"||b.coach===fc).filter(b=>fs==="all"||b.status===fs).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,vm,fc,fs]);
 const stats=useMemo(()=>{const a=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const m={};for(const b of a){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]={total:0,"一對一":0,"一對二":0};m[b.coach].total+=h;m[b.coach]["一對一"]+=b.type==="一對一"?h:0;m[b.coach]["一對二"]+=b.type==="一對二"?h:0}return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)},[bookings,vm]);
-const dailyStats=useMemo(()=>{const days={};const active=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");for(const b of active){if(!days[b.date])days[b.date]={};if(!days[b.date][b.coach])days[b.date][b.coach]=0;days[b.date][b.coach]+=calcHours(b.start,b.end);}return Object.entries(days).sort((a,b)=>a[0].localeCompare(b[0]));},[bookings,vm]);
+const dayStats=useMemo(()=>{const list=bookings.filter(b=>b.date===statsDate&&b.status!=="cancelled");const m={};for(const b of list){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]=0;m[b.coach]+=h;}return Object.entries(m).sort((a,b)=>b[1]-a[1]);},[bookings,statsDate]);
+const dayStatsTotal=useMemo(()=>dayStats.reduce((acc,[,h])=>acc+h,0),[dayStats]);
 const dayBookings=useMemo(()=>{const list=bookings.filter(b=>b.date===viewDate&&b.status!=="cancelled").sort((a,b)=>a.start.localeCompare(b.start));const totalHours=list.reduce((acc,b)=>acc+calcHours(b.start,b.end),0);const opener=list[0];const closer=list[list.length-1];
 const timeGroups={};for(const b of list){const key=`${b.start}-${b.end}`;if(!timeGroups[key])timeGroups[key]={start:b.start,end:b.end,coaches:[]};timeGroups[key].coaches.push(b);}
 const groupedList=Object.values(timeGroups).sort((a,b)=>a.start.localeCompare(b.start));
@@ -176,6 +178,7 @@ const setManualRemaining=async(coach,val)=>{const p={...plans,[coach]:{...plans[
 const refresh=async()=>{setLoading(true);const d=await fetchAll();setBookings(d.bookings||[]);if(d.coaches&&d.coaches.length>0)setCoaches(d.coaches);if(d.plans&&Object.keys(d.plans).length>0)setPlans(d.plans);setLoading(false)};
 useEffect(()=>{refresh()},[]);
 const isToday=viewDate===todayStr();
+const isStatToday=statsDate===todayStr();
 return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:10}}>
 <h1 style={{fontFamily:H,fontSize:20,fontWeight:400}}>管理員後台</h1>
@@ -193,6 +196,7 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={{fontSize:13,fontWeight:700,color:C.red,marginBottom:10}}>⚠️ 以下教練堂數即將用完</div>
 {lowStock.map(c=>{const r=getRemainder(c);return<div key={c} style={{fontSize:13,color:C.red,marginBottom:4}}>• {c}：剩餘 <b>{r?.toFixed(1)}</b> 堂</div>})}
 </div>}
+
 {tab==="schedule"&&<>
 <div style={{...card,padding:"16px 20px"}}>
 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
@@ -236,6 +240,7 @@ dayBookings.list.length===0?<div style={{...card,textAlign:"center",color:C.mute
 </div>
 </div>}
 </>}
+
 {tab==="stats"&&<>
 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
 {months.length===0?<div style={{fontSize:13,color:C.muted}}>尚無任何紀錄</div>:months.map(m=><button key={m} onClick={()=>setVm(m)} style={{...btn(vm===m?"accent":"ghost","sm"),borderColor:vm===m?C.accent:C.border}}>{ml(m)}</button>)}
@@ -245,24 +250,30 @@ dayBookings.list.length===0?<div style={{...card,textAlign:"center",color:C.mute
 </div>
 <div style={card}>
 <h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:16}}>📅 每日明細</h2>
-{dailyStats.length===0?<div style={{textAlign:"center",color:C.muted,fontSize:13,padding:"20px"}}>這個月尚無紀錄</div>:
-dailyStats.map(([date,coachMap])=>(
-<div key={date} style={{marginBottom:16,borderBottom:`1px solid ${C.border}`,paddingBottom:16}}>
-<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-<span style={{fontSize:14,fontWeight:700,color:C.text}}>{fmt(date)}</span>
-<span style={{fontSize:12,color:C.accent,fontWeight:700}}>共 {Object.values(coachMap).reduce((a,b)=>a+b,0).toFixed(1)} 小時</span>
+<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,background:C.bg,borderRadius:10,padding:"12px 16px"}}>
+<button onClick={()=>setStatsDate(addDays(statsDate,-1))} style={{...btn("ghost","sm"),fontSize:20,padding:"4px 14px"}}>‹</button>
+<div style={{textAlign:"center"}}>
+<div style={{fontSize:15,fontWeight:700,color:C.text}}>{fmt(statsDate)}</div>
+{isStatToday&&<div style={{fontSize:11,color:C.accent,fontWeight:700}}>今天</div>}
 </div>
-<div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-{Object.entries(coachMap).sort((a,b)=>b[1]-a[1]).map(([coach,hours])=>(
-<div key={coach} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"6px 12px",display:"flex",alignItems:"center",gap:6}}>
+<button onClick={()=>setStatsDate(addDays(statsDate,1))} style={{...btn("ghost","sm"),fontSize:20,padding:"4px 14px"}}>›</button>
+</div>
+{!isStatToday&&<div style={{textAlign:"center",marginBottom:12}}>
+<button onClick={()=>setStatsDate(todayStr())} style={btn("accent","sm")}>回到今天</button>
+</div>}
+{dayStats.length===0?<div style={{textAlign:"center",color:C.muted,fontSize:13,padding:"20px"}}>這天尚無紀錄</div>:
+<><div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
+{dayStats.map(([coach,hours])=>(
+<div key={coach} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 14px",display:"flex",alignItems:"center",gap:6}}>
 <span style={{fontSize:13,fontWeight:700,color:C.text}}>{coach}</span>
 {getPlanBadge(coach)}
-<span style={{fontSize:12,color:C.muted}}>{hours.toFixed(1)}h</span>
+<span style={{fontSize:13,fontWeight:700,color:C.accent}}>{hours.toFixed(1)}h</span>
 </div>))}
 </div>
-</div>))}
+<div style={{fontSize:12,color:C.muted,textAlign:"right"}}>當天合計：<b style={{color:C.accent}}>{dayStatsTotal.toFixed(1)} 小時</b></div>
+</>}
 </div>
-{stats.length>0&&<div style={card}><h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:16}}>📊 月總量統計</h2>
+{stats.length>0&&<div style={card}><h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:16}}>📊 {ml(vm)} 總量統計</h2>
 <div style={{display:"flex",flexDirection:"column",gap:8}}>
 {stats.map(([c,s])=><div key={c} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
 <div style={{display:"flex",alignItems:"center",gap:6,width:120}}><span style={{fontWeight:700,fontSize:14,color:C.text}}>{c}</span>{getPlanBadge(c)}</div>
@@ -283,6 +294,7 @@ dailyStats.map(([date,coachMap])=>(
 <button onClick={()=>hardDelete(b.id)} style={{...btn("ghost","sm"),color:C.red,borderColor:C.redBdr,padding:"4px 8px"}}>🗑</button>
 </div>)}</div>}
 </div></>}
+
 {tab==="coaches"&&<div style={card}>
 <h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:20}}>👥 教練名單管理</h2>
 <div style={{marginBottom:24}}>
@@ -306,6 +318,7 @@ return<div key={c} style={{display:"flex",alignItems:"center",justifyContent:"sp
 </div>
 <div style={{marginTop:16,fontSize:12,color:C.muted}}>共 {coaches.length} 位教練</div>
 </div>}
+
 {tab==="plans"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
 <h2 style={{fontFamily:H,fontSize:16,fontWeight:400}}>💳 教練方案管理</h2>
 {coaches.filter(c=>c!=="單次場租").map(c=>{const p=plans[c];const isPackage=p?.type==="30堂";const r=getRemainder(c);const low=isPackage&&r!==null&&r<=5;
