@@ -23,6 +23,7 @@ const DEFAULT_COACHES=["Jessica","AJ","Kai","Wendy","Joy91","Amy","YY","NoNo(Jac
 const ADMIN_PASSWORD="fp16888";
 const SHEET_URL="https://script.google.com/macros/s/AKfycbznmXuD5S9WQ8R2Tpb_J0Wxy62FzzAiJXmihQ0v-7GX14C_vfsfukUnmqbUsv_zJ-mv/exec";
 const todayStr=()=>{const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`};
+const yesterdayStr=()=>{const n=new Date();n.setDate(n.getDate()-1);return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`};
 const thisMonth=()=>{const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`};
 const fmt=d=>{if(!d||typeof d!=="string"||!d.includes("-"))return d||"";const p=d.split("-");if(p.length<3)return d;return`${p[0]}/${p[1]}/${p[2]}`};
 const mk=d=>{if(!d||typeof d!=="string")return"";const p=d.split("-");if(p.length<2)return"";return`${p[0]}-${p[1]}`};
@@ -64,23 +65,31 @@ const[coach,setCoach]=useState("");
 const[date,setDate]=useState(todayStr());
 const[start,setStart]=useState(nowTime());
 const[end,setEnd]=useState(addHalf(nowTime()));
-const[type,setType]=useState("1on1");const[ok,setOk]=useState(false);const[err,setErr]=useState("");
+const[type,setType]=useState("1on1");
+const[ok,setOk]=useState(false);
+const[err,setErr]=useState("");
+const[submitting,setSubmitting]=useState(false);
 const[myBookings,setMyBookings]=useState([]);const[loadingMine,setLoadingMine]=useState(false);
 const loadMine=async c=>{if(!c)return;setLoadingMine(true);const{bookings}=await fetchAll();const mine=bookings.filter(b=>b.coach===c&&b.status!=="cancelled"&&b.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start));setMyBookings(mine);setLoadingMine(false)};
 useEffect(()=>{loadMine(coach)},[coach]);
 const handleStartChange=e=>{setStart(e.target.value);setEnd(addHalf(e.target.value))};
 const submit=async()=>{
+if(submitting)return;
 setErr("");
 if(!coach)return setErr("請選擇您的名字");
 if(!date)return setErr("請選擇日期");
 if(start>=end)return setErr("結束時間必須晚於開始時間");
 const totalMins=(()=>{const[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);return(eh*60+em)-(sh*60+sm)})();
 if(totalMins%60!==0&&totalMins%90!==0){return setErr("只能預約整數小時或1.5小時（如1h、1.5h、2h、3h...）");}
+setSubmitting(true);
+try{
 const slots=expandBookings(coach,date,start,end,type==="1on1"?"一對一":"一對二");
 for(const slot of slots){await sync({action:"add",...slot});}
 setOk(true);setTimeout(()=>setOk(false),3000);
 setStart(nowTime());setEnd(addHalf(nowTime()));setType("1on1");
 await loadMine(coach);
+}catch(e){setErr("送出失敗，請再試一次");}
+finally{setSubmitting(false);}
 };
 const cancel=async id=>{await sync({action:"cancel",id,coach,date,start,end,type,status:"cancelled",createdAt:""});await loadMine(coach)};
 return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
@@ -92,15 +101,15 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={card}>
 <h2 style={{fontFamily:H,fontSize:17,fontWeight:400,marginBottom:20,color:C.text}}>新增預約</h2>
 <div style={{display:"flex",flexDirection:"column",gap:16}}>
-<div><label style={lbl}>我是</label><select value={coach} onChange={e=>setCoach(e.target.value)} style={inp}><option value="">— 請選擇您的名字 —</option>{coaches.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-<div><label style={lbl}>上課日期</label><input type="date" value={date} min={todayStr()} onChange={e=>setDate(e.target.value)} style={inp}/></div>
+<div><label style={lbl}>我是</label><select value={coach} onChange={e=>setCoach(e.target.value)} style={inp} disabled={submitting}><option value="">— 請選擇您的名字 —</option>{coaches.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+<div><label style={lbl}>上課日期</label><input type="date" value={date} min={todayStr()} onChange={e=>setDate(e.target.value)} style={inp} disabled={submitting}/></div>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
 <div><label style={lbl}>開始時間</label>
-<select value={start} onChange={handleStartChange} style={inp}>
+<select value={start} onChange={handleStartChange} style={inp} disabled={submitting}>
 {TIME_SLOTS.map(t=><option key={t} value={t}>{t}</option>)}
 </select></div>
 <div><label style={lbl}>結束時間</label>
-<select value={end} onChange={e=>setEnd(e.target.value)} style={inp}>
+<select value={end} onChange={e=>setEnd(e.target.value)} style={inp} disabled={submitting}>
 {TIME_SLOTS.map(t=><option key={t} value={t}>{t}</option>)}
 </select></div>
 </div>
@@ -109,11 +118,13 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 </div>
 <div><label style={lbl}>上課模式</label>
 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-{["1on1","1on2"].map(k=><button key={k} onClick={()=>setType(k)} style={{background:type===k?C.accentBg:C.bg,border:`2px solid ${type===k?C.accent:C.border}`,borderRadius:8,color:type===k?C.accent:C.muted,padding:"12px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:B,fontSize:14,fontWeight:700}}>{k==="1on1"?"一對一":"一對二"}</button>)}
+{["1on1","1on2"].map(k=><button key={k} onClick={()=>!submitting&&setType(k)} style={{background:type===k?C.accentBg:C.bg,border:`2px solid ${type===k?C.accent:C.border}`,borderRadius:8,color:type===k?C.accent:C.muted,padding:"12px",cursor:submitting?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:B,fontSize:14,fontWeight:700,opacity:submitting?0.6:1}}>{k==="1on1"?"一對一":"一對二"}</button>)}
 </div></div>
 {err&&<div style={{background:C.redBg,border:`1px solid ${C.redBdr}`,borderRadius:8,padding:"10px 14px",color:C.red,fontSize:13}}>⚠ {err}</div>}
 {ok&&<div style={{background:C.greenBg,border:`1px solid ${C.greenBdr}`,borderRadius:8,padding:"10px 14px",color:C.green,fontSize:13}}>✓ 預約成功送出！</div>}
-<button onClick={submit} style={{...btn("accent","lg"),justifyContent:"center",width:"100%"}}>✓ 確認送出</button>
+<button onClick={submit} disabled={submitting} style={{...btn("accent","lg"),justifyContent:"center",width:"100%",opacity:submitting?0.7:1,cursor:submitting?"not-allowed":"pointer"}}>
+{submitting?"⏳ 送出中，請稍候...":"✓ 確認送出"}
+</button>
 </div></div>
 {coach&&<div style={card}>
 <h2 style={{fontFamily:H,fontSize:17,fontWeight:400,marginBottom:4,color:C.text}}>{coach} 的預約紀錄</h2>
@@ -163,8 +174,8 @@ const dayBookings=useMemo(()=>{const list=bookings.filter(b=>b.date===viewDate&&
 const timeGroups={};for(const b of list){const key=`${b.start}-${b.end}`;if(!timeGroups[key])timeGroups[key]={start:b.start,end:b.end,coaches:[]};timeGroups[key].coaches.push(b);}
 const groupedList=Object.values(timeGroups).sort((a,b)=>a.start.localeCompare(b.start));
 return{list,totalHours,opener,closer,groupedList}},[bookings,viewDate]);
-const coachUsage=useMemo(()=>{const m={};for(const b of bookings){if(b.status==="cancelled")continue;if(!m[b.coach])m[b.coach]=0;m[b.coach]+=calcHours(b.start,b.end);}return m;},[bookings]);
-const getRemainder=(c)=>{const p=plans[c];if(!p||p.type!=="30堂")return null;if(p.manualRemaining!==null&&p.manualRemaining!==undefined)return p.manualRemaining;return(p.purchased||0)-(coachUsage[c]||0);};
+const coachUsage=useMemo(()=>{const m={};for(const b of bookings){if(b.status==="cancelled")continue;if(b.date>=todayStr())continue;m[b.coach]=(m[b.coach]||0)+calcHours(b.start,b.end);}return m;},[bookings]);
+const getRemainder=(c)=>{const p=plans[c];if(!p||p.type!=="30堂")return null;if(p.manualRemaining!==null&&p.manualRemaining!==undefined){const usedAfterManual=Object.entries(coachUsage).find(([k])=>k===c)?.[1]||0;return p.manualRemaining-usedAfterManual+((plans[c]?.manualRemainingUsed)||0);}return(p.purchased||0)-(coachUsage[c]||0);};
 const getPlanBadge=(c)=>{const p=plans[c];if(!p||!p.type)return null;if(p.type==="30堂")return<span style={{fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:3,background:C.accentBg,color:C.accent,border:`1px solid ${C.accentBdr}`}}>30堂</span>;if(p.type==="單次")return<span style={{fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:3,background:C.blueBg,color:C.blue,border:`1px solid ${C.blueBdr}`}}>單次</span>;return null;};
 const lowStock=useMemo(()=>coaches.filter(c=>{const r=getRemainder(c);return r!==null&&r<=5&&r>=0;}),[coaches,plans,coachUsage]);
 const ta=filtered.filter(b=>b.status!=="cancelled").reduce((acc,b)=>acc+calcHours(b.start,b.end),0).toFixed(1);
@@ -196,7 +207,6 @@ return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
 <div style={{fontSize:13,fontWeight:700,color:C.red,marginBottom:10}}>⚠️ 以下教練堂數即將用完</div>
 {lowStock.map(c=>{const r=getRemainder(c);return<div key={c} style={{fontSize:13,color:C.red,marginBottom:4}}>• {c}：剩餘 <b>{r?.toFixed(1)}</b> 堂</div>})}
 </div>}
-
 {tab==="schedule"&&<>
 <div style={{...card,padding:"16px 20px"}}>
 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
@@ -240,7 +250,6 @@ dayBookings.list.length===0?<div style={{...card,textAlign:"center",color:C.mute
 </div>
 </div>}
 </>}
-
 {tab==="stats"&&<>
 <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
 {months.length===0?<div style={{fontSize:13,color:C.muted}}>尚無任何紀錄</div>:months.map(m=><button key={m} onClick={()=>setVm(m)} style={{...btn(vm===m?"accent":"ghost","sm"),borderColor:vm===m?C.accent:C.border}}>{ml(m)}</button>)}
@@ -294,7 +303,6 @@ dayBookings.list.length===0?<div style={{...card,textAlign:"center",color:C.mute
 <button onClick={()=>hardDelete(b.id)} style={{...btn("ghost","sm"),color:C.red,borderColor:C.redBdr,padding:"4px 8px"}}>🗑</button>
 </div>)}</div>}
 </div></>}
-
 {tab==="coaches"&&<div style={card}>
 <h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:20}}>👥 教練名單管理</h2>
 <div style={{marginBottom:24}}>
@@ -318,9 +326,11 @@ return<div key={c} style={{display:"flex",alignItems:"center",justifyContent:"sp
 </div>
 <div style={{marginTop:16,fontSize:12,color:C.muted}}>共 {coaches.length} 位教練</div>
 </div>}
-
 {tab==="plans"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
 <h2 style={{fontFamily:H,fontSize:16,fontWeight:400}}>💳 教練方案管理</h2>
+<div style={{fontSize:12,color:C.muted,background:C.blueBg,border:`1px solid ${C.blueBdr}`,borderRadius:8,padding:"10px 14px"}}>
+💡 堂數計算只含昨天以前已完成的課，今天及未來的預約不計入
+</div>
 {coaches.filter(c=>c!=="單次場租").map(c=>{const p=plans[c];const isPackage=p?.type==="30堂";const r=getRemainder(c);const low=isPackage&&r!==null&&r<=5;
 return<div key={c} style={{...card,border:`1px solid ${low?C.red:C.border}`}}>
 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
@@ -334,7 +344,7 @@ return<div key={c} style={{...card,border:`1px solid ${low?C.red:C.border}`}}>
 {isPackage&&<div style={{background:C.bg,borderRadius:8,padding:"12px",display:"flex",flexDirection:"column",gap:12}}>
 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
 <div style={{textAlign:"center"}}><div style={{fontSize:12,color:C.muted}}>已購買</div><div style={{fontSize:18,fontWeight:700,color:C.text}}>{p.purchased}堂</div></div>
-<div style={{textAlign:"center"}}><div style={{fontSize:12,color:C.muted}}>已使用</div><div style={{fontSize:18,fontWeight:700,color:C.text}}>{(coachUsage[c]||0).toFixed(1)}堂</div></div>
+<div style={{textAlign:"center"}}><div style={{fontSize:12,color:C.muted}}>已完成</div><div style={{fontSize:18,fontWeight:700,color:C.text}}>{(coachUsage[c]||0).toFixed(1)}堂</div></div>
 <div style={{textAlign:"center"}}><div style={{fontSize:12,color:C.muted}}>剩餘</div><div style={{fontSize:18,fontWeight:700,color:low?C.red:C.green}}>{r?.toFixed(1)}堂</div></div>
 <button onClick={()=>addPurchase(c)} style={btn("green","sm")}>＋ 再買30堂</button>
 </div>
@@ -344,7 +354,7 @@ return<div key={c} style={{...card,border:`1px solid ${low?C.red:C.border}`}}>
 <input type="number" placeholder="輸入剩餘堂數" defaultValue={p.manualRemaining??""} onBlur={e=>setManualRemaining(c,e.target.value===''?null:e.target.value)} style={{...inp,flex:1}}/>
 <button onClick={()=>setManualRemaining(c,null)} style={btn("ghost","sm")}>自動計算</button>
 </div>
-<div style={{fontSize:11,color:C.muted,marginTop:4}}>手動設定後會覆蓋自動計算，點「自動計算」恢復</div>
+<div style={{fontSize:11,color:C.muted,marginTop:4}}>手動設定後系統仍會繼續扣除之後完成的課堂</div>
 </div>
 </div>}
 </div>})}
