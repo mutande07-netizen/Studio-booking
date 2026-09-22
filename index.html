@@ -1,382 +1,136 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>FourPlus Studio 預約系統</title>
-<script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#f7f5f0;font-family:'Helvetica Neue',Helvetica,sans-serif}
-select,input{color:#1a1612}
-select option{background:#fff}
-button:hover{opacity:0.85}
-</style>
-</head>
-<body>
-<div id="root"></div>
-<script type="text/babel">
-const{useState,useMemo,useEffect}=React;
-const DEFAULT_COACHES=["Jessica","AJ","Kai","Wendy","Joy91","Amy","YY","NoNo(Jackie)","Roger","Ray","Calvin","Min","小六Six","Rita","Emma","Emily","2K","Ting","Tim","志嘉Ethan","Kevin","Jojo","Taidy","Myriam","Leann","Chang","柯","Vick","Lewin綸","卿哥","Lai小賴","Sherry","阿鳥/苡慈","Bailey(杯裡)","詠樺","Gary","丁丹","Mark","Linda","Billy","雲翔","GREEN","ERIC","Elvis","又玄","John","Rena","Mia","Joe","單次場租","Bruce Lee","Leo"];
-const ADMIN_PASSWORD="fp16888";
-const SHEET_URL="https://script.google.com/macros/s/AKfycbznmXuD5S9WQ8R2Tpb_J0Wxy62FzzAiJXmihQ0v-7GX14C_vfsfukUnmqbUsv_zJ-mv/exec";
-const todayStr=()=>{const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`};
-const yesterdayStr=()=>{const n=new Date();n.setDate(n.getDate()-1);return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`};
-const thisMonth=()=>{const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`};
-const fmt=d=>{if(!d||typeof d!=="string"||!d.includes("-"))return d||"";const p=d.split("-");if(p.length<3)return d;return`${p[0]}/${p[1]}/${p[2]}`};
-const mk=d=>{if(!d||typeof d!=="string")return"";const p=d.split("-");if(p.length<2)return"";return`${p[0]}-${p[1]}`};
-const ml=m=>{if(!m||typeof m!=="string"||!m.includes("-"))return m||"";const p=m.split("-");return`${p[0]}年${parseInt(p[1])}月`};
-const calcHours=(start,end)=>{if(!start||!end||typeof start!=="string"||typeof end!=="string")return 0;const sp=start.split(":");const ep=end.split(":");if(sp.length<2||ep.length<2)return 0;const sh=parseInt(sp[0]),sm=parseInt(sp[1]),eh=parseInt(ep[0]),em=parseInt(ep[1]);if(isNaN(sh)||isNaN(eh))return 0;return((eh*60+em)-(sh*60+sm))/60};
-const TIME_SLOTS=Array.from({length:48},(_,i)=>{const h=Math.floor(i/2);const m=i%2===0?"00":"30";return`${String(h).padStart(2,"0")}:${m}`});
-const addHalf=t=>{const[h,m]=t.split(":").map(Number);const total=h*60+m+30;if(total>=24*60)return"23:30";return`${String(Math.floor(total/60)).padStart(2,"0")}:${total%60===0?"00":"30"}`};
-const nowTime=()=>{const n=new Date();const h=n.getHours();const m=n.getMinutes()<30?"00":"30";return`${String(h).padStart(2,"0")}:${m}`};
-const addDays=(dateStr,days)=>{const d=new Date(dateStr);d.setDate(d.getDate()+days);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`};
-const expandBookings=(coach,date,start,end,type)=>{
-const slots=[];
-const[sh,sm]=start.split(":").map(Number);
-const[eh,em]=end.split(":").map(Number);
-let cur=sh*60+sm;
-while(cur<eh*60+em){
-const remaining=(eh*60+em)-cur;
-let slotMins;
-if(remaining<=60){slotMins=remaining;}
-else{const afterNext=(eh*60+em)-(cur+60);if(afterNext===30){slotMins=90;}else{slotMins=60;}}
-const s=`${String(Math.floor(cur/60)).padStart(2,"0")}:${String(cur%60).padStart(2,"0")}`;
-const e=`${String(Math.floor((cur+slotMins)/60)).padStart(2,"0")}:${String((cur+slotMins)%60).padStart(2,"0")}`;
-slots.push({id:`${Date.now()}-${s}`,coach,date,start:s,end:e,type,status:"active",createdAt:new Date().toISOString()});
-cur+=slotMins;
+const SHEET_NAME = "工作表1";
+const COACH_SHEET = "教練名單";
+const PLAN_SHEET = "方案設定";
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(SHEET_NAME);
+
+    if (data.action === "add") {
+      const lastRow = sheet.getLastRow() + 1;
+      sheet.getRange(lastRow, 1).setValue(data.id);
+      sheet.getRange(lastRow, 2).setValue(data.coach);
+      sheet.getRange(lastRow, 3).setValue(data.date).setNumberFormat("@");
+      sheet.getRange(lastRow, 4).setValue(data.start).setNumberFormat("@");
+      sheet.getRange(lastRow, 5).setValue(data.end).setNumberFormat("@");
+      sheet.getRange(lastRow, 6).setValue(data.type);
+      sheet.getRange(lastRow, 7).setValue(data.status);
+      sheet.getRange(lastRow, 8).setValue(data.createdAt);
+      sheet.getRange(lastRow, 9).setValue("新增");
+    }
+
+    if (data.action === "cancel") {
+      const rows = sheet.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) {
+        if (String(rows[i][0]) === String(data.id)) {
+          sheet.getRange(i + 1, 7).setValue("cancelled");
+          sheet.getRange(i + 1, 9).setValue("取消");
+          break;
+        }
+      }
+    }
+
+    if (data.action === "saveCoaches") {
+      let cs = ss.getSheetByName(COACH_SHEET);
+      if (!cs) cs = ss.insertSheet(COACH_SHEET);
+      cs.clearContents();
+      cs.getRange(1, 1).setValue("名字");
+      data.coaches.forEach((c, i) => cs.getRange(i + 2, 1).setValue(c));
+    }
+
+    if (data.action === "savePlans") {
+      let ps = ss.getSheetByName(PLAN_SHEET);
+      if (!ps) ps = ss.insertSheet(PLAN_SHEET);
+      ps.clearContents();
+      ps.getRange(1, 1).setValue("教練");
+      ps.getRange(1, 2).setValue("方案");
+      ps.getRange(1, 3).setValue("已購買");
+      ps.getRange(1, 4).setValue("手動剩餘");
+      const entries = Object.entries(data.plans);
+      entries.forEach(([coach, plan], i) => {
+        ps.getRange(i + 2, 1).setValue(coach);
+        ps.getRange(i + 2, 2).setValue(plan.type || "");
+        ps.getRange(i + 2, 3).setValue(plan.purchased || 0);
+        ps.getRange(i + 2, 4).setValue(plan.manualRemaining ?? "");
+      });
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ result: "ok" }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ result: "error", message: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
-return slots;
-};
-async function sync(p){if(!SHEET_URL)return;try{await fetch(SHEET_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)})}catch(e){}}
-async function fetchAll(){try{const r=await fetch(SHEET_URL+"?t="+Date.now());const d=await r.json();if(d.result==="ok")return d;return{bookings:[],coaches:[],plans:{}}}catch(e){return{bookings:[],coaches:[],plans:{}}}}
-const C={bg:"#f7f5f0",surface:"#fff",border:"#e8e3da",text:"#1a1612",muted:"#8a7f72",accent:"#c8651a",accentBg:"#fdf3ea",accentBdr:"#f0c49a",green:"#1a7a4a",greenBg:"#edf7f2",greenBdr:"#a8d9bc",red:"#b91c1c",redBg:"#fef2f2",redBdr:"#fecaca",blue:"#1d4ed8",blueBg:"#eff6ff",blueBdr:"#bfdbfe",purple:"#6d28d9",purpleBg:"#f5f3ff",purpleBdr:"#ddd6fe",orange:"#c2410c",orangeBg:"#fff7ed",orangeBdr:"#fed7aa"};
-const H="'Georgia','Times New Roman',serif";
-const B="'Helvetica Neue',Helvetica,sans-serif";
-const card={background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:24};
-const lbl={display:"block",fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:C.muted,marginBottom:6};
-const inp={width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,padding:"10px 12px",fontFamily:B,fontSize:14,outline:"none",boxSizing:"border-box"};
-const btn=(c="accent",s="md")=>({background:c==="accent"?C.accent:c==="ghost"?"transparent":c==="red"?C.red:C.green,color:c==="ghost"?C.muted:"#fff",border:c==="ghost"?`1px solid ${C.border}`:"none",borderRadius:8,padding:s==="sm"?"6px 12px":s==="lg"?"14px 24px":"10px 16px",fontSize:s==="sm"?12:s==="lg"?15:13,fontWeight:700,fontFamily:B,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6,transition:"opacity 0.15s"});
-function Badge({type,status}){const can=status==="cancelled",is1=type==="一對一";return<span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:4,background:can?C.redBg:is1?C.greenBg:C.purpleBg,color:can?C.red:is1?C.green:C.purple,border:`1px solid ${can?C.redBdr:is1?C.greenBdr:C.purpleBdr}`,textDecoration:can?"line-through":"none",whiteSpace:"nowrap"}}>{can?"已取消":type}</span>}
-function CoachPage({coaches}){
-const[coach,setCoach]=useState("");
-const[date,setDate]=useState(todayStr());
-const[start,setStart]=useState(nowTime());
-const[end,setEnd]=useState(addHalf(nowTime()));
-const[type,setType]=useState("1on1");
-const[ok,setOk]=useState(false);
-const[err,setErr]=useState("");
-const[submitting,setSubmitting]=useState(false);
-const[myBookings,setMyBookings]=useState([]);const[loadingMine,setLoadingMine]=useState(false);
-const loadMine=async c=>{if(!c)return;setLoadingMine(true);const{bookings}=await fetchAll();const mine=bookings.filter(b=>b.coach===c&&b.status!=="cancelled"&&b.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start));setMyBookings(mine);setLoadingMine(false)};
-useEffect(()=>{loadMine(coach)},[coach]);
-const handleStartChange=e=>{setStart(e.target.value);setEnd(addHalf(e.target.value))};
-const submit=async()=>{
-if(submitting)return;
-setErr("");
-if(!coach)return setErr("請選擇您的名字");
-if(!date)return setErr("請選擇日期");
-if(start>=end)return setErr("結束時間必須晚於開始時間");
-const totalMins=(()=>{const[sh,sm]=start.split(":").map(Number);const[eh,em]=end.split(":").map(Number);return(eh*60+em)-(sh*60+sm)})();
-if(totalMins%60!==0&&totalMins%90!==0){return setErr("只能預約整數小時或1.5小時（如1h、1.5h、2h、3h...）");}
-setSubmitting(true);
-try{
-const slots=expandBookings(coach,date,start,end,type==="1on1"?"一對一":"一對二");
-for(const slot of slots){await sync({action:"add",...slot});}
-setOk(true);setTimeout(()=>setOk(false),3000);
-setStart(nowTime());setEnd(addHalf(nowTime()));setType("1on1");
-await loadMine(coach);
-}catch(e){setErr("送出失敗，請再試一次");}
-finally{setSubmitting(false);}
-};
-const cancel=async id=>{await sync({action:"cancel",id,coach,date,start,end,type,status:"cancelled",createdAt:""});await loadMine(coach)};
-return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
-<div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"20px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-<div><h1 style={{fontFamily:H,fontSize:22,fontWeight:400,color:C.text}}>FourPlus Studio 預約</h1><p style={{fontSize:12,color:C.muted,marginTop:4}}>請登記您的上課時間</p></div>
-<div style={{fontSize:11,color:C.muted,background:C.bg,padding:"6px 12px",borderRadius:20,border:`1px solid ${C.border}`}}>{fmt(todayStr())}</div>
-</div>
-<div style={{maxWidth:560,margin:"0 auto",padding:"24px 16px",display:"flex",flexDirection:"column",gap:20}}>
-<div style={card}>
-<h2 style={{fontFamily:H,fontSize:17,fontWeight:400,marginBottom:20,color:C.text}}>新增預約</h2>
-<div style={{display:"flex",flexDirection:"column",gap:16}}>
-<div><label style={lbl}>我是</label><select value={coach} onChange={e=>setCoach(e.target.value)} style={inp} disabled={submitting}><option value="">— 請選擇您的名字 —</option>{coaches.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-<div><label style={lbl}>上課日期</label><input type="date" value={date} min={todayStr()} onChange={e=>setDate(e.target.value)} style={inp} disabled={submitting}/></div>
-<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-<div><label style={lbl}>開始時間</label>
-<select value={start} onChange={handleStartChange} style={inp} disabled={submitting}>
-{TIME_SLOTS.map(t=><option key={t} value={t}>{t}</option>)}
-</select></div>
-<div><label style={lbl}>結束時間</label>
-<select value={end} onChange={e=>setEnd(e.target.value)} style={inp} disabled={submitting}>
-{TIME_SLOTS.map(t=><option key={t} value={t}>{t}</option>)}
-</select></div>
-</div>
-<div style={{background:C.blueBg,border:`1px solid ${C.blueBdr}`,borderRadius:8,padding:"10px 14px",fontSize:12,color:C.blue}}>
-💡 每小時自動拆成一筆，1.5小時為一筆，方便個別取消
-</div>
-<div><label style={lbl}>上課模式</label>
-<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-{["1on1","1on2"].map(k=><button key={k} onClick={()=>!submitting&&setType(k)} style={{background:type===k?C.accentBg:C.bg,border:`2px solid ${type===k?C.accent:C.border}`,borderRadius:8,color:type===k?C.accent:C.muted,padding:"12px",cursor:submitting?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:B,fontSize:14,fontWeight:700,opacity:submitting?0.6:1}}>{k==="1on1"?"一對一":"一對二"}</button>)}
-</div></div>
-{err&&<div style={{background:C.redBg,border:`1px solid ${C.redBdr}`,borderRadius:8,padding:"10px 14px",color:C.red,fontSize:13}}>⚠ {err}</div>}
-{ok&&<div style={{background:C.greenBg,border:`1px solid ${C.greenBdr}`,borderRadius:8,padding:"10px 14px",color:C.green,fontSize:13}}>✓ 預約成功送出！</div>}
-<button onClick={submit} disabled={submitting} style={{...btn("accent","lg"),justifyContent:"center",width:"100%",opacity:submitting?0.7:1,cursor:submitting?"not-allowed":"pointer"}}>
-{submitting?"⏳ 送出中，請稍候...":"✓ 確認送出"}
-</button>
-</div></div>
-{coach&&<div style={card}>
-<h2 style={{fontFamily:H,fontSize:17,fontWeight:400,marginBottom:4,color:C.text}}>{coach} 的預約紀錄</h2>
-<p style={{fontSize:11,color:C.muted,marginBottom:16}}>顯示今天及未來的預約</p>
-{loadingMine?<div style={{textAlign:"center",color:C.muted,padding:"20px",fontSize:13}}>載入中...</div>:
-myBookings.length===0?<div style={{textAlign:"center",color:C.muted,padding:"20px",fontSize:13}}>目前沒有預約</div>:
-<div style={{display:"flex",flexDirection:"column",gap:8}}>
-{myBookings.map(b=><div key={b.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
-<div style={{display:"flex",alignItems:"center",gap:12}}><Badge type={b.type} status={b.status}/><div><div style={{fontSize:13,fontWeight:700,color:C.text}}>{fmt(b.date)}</div><div style={{fontSize:12,color:C.muted}}>{b.start}–{b.end}</div></div></div>
-<button onClick={()=>cancel(b.id)} style={{...btn("ghost","sm"),color:C.red,borderColor:C.redBdr}}>✕ 取消</button>
-</div>)}
-</div>}
-</div>}
-</div></div>}
-function AdminLogin({onLogin}){
-const[pw,setPw]=useState("");const[show,setShow]=useState(false);const[err,setErr]=useState(false);
-const go=()=>{if(pw.trim()===ADMIN_PASSWORD)onLogin();else{setErr(true);setTimeout(()=>setErr(false),1500)}};
-return<div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-<div style={{...card,width:"100%",maxWidth:380}}>
-<div style={{textAlign:"center",marginBottom:28}}>
-<div style={{width:48,height:48,borderRadius:12,background:C.accentBg,border:`1px solid ${C.accentBdr}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",fontSize:22}}>🔐</div>
-<h1 style={{fontFamily:H,fontSize:22,fontWeight:400,marginBottom:4}}>管理員後台</h1>
-<p style={{fontSize:12,color:C.muted}}>請輸入管理員密碼</p>
-</div>
-<div style={{display:"flex",flexDirection:"column",gap:14}}>
-<div style={{position:"relative"}}><input type={show?"text":"password"} placeholder="密碼" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&go()} style={{...inp,borderColor:err?C.red:C.border,paddingRight:44}}/><button onClick={()=>setShow(!show)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16}}>{show?"🙈":"👁"}</button></div>
-{err&&<div style={{color:C.red,fontSize:12,textAlign:"center"}}>密碼錯誤，請再試一次</div>}
-<button onClick={go} style={{...btn("accent","lg"),justifyContent:"center"}}>→ 登入後台</button>
-</div></div></div>}
-function AdminDashboard({onLogout}){
-const[tab,setTab]=useState("schedule");
-const[vm,setVm]=useState(thisMonth());
-const[viewDate,setViewDate]=useState(todayStr());
-const[statsDate,setStatsDate]=useState(todayStr());
-const[fc,setFc]=useState("all");const[fs,setFs]=useState("all");
-const[newCoach,setNewCoach]=useState("");const[addErr,setAddErr]=useState("");
-const[loading,setLoading]=useState(false);
-const[bookings,setBookings]=useState([]);
-const[coaches,setCoaches]=useState(DEFAULT_COACHES);
-const[plans,setPlans]=useState({});
-const months=useMemo(()=>[...new Set(bookings.map(b=>mk(b.date)).filter(m=>m&&m.includes("-")))].sort().reverse(),[bookings]);
-const filtered=useMemo(()=>bookings.filter(b=>mk(b.date)===vm).filter(b=>fc==="all"||b.coach===fc).filter(b=>fs==="all"||b.status===fs).sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)),[bookings,vm,fc,fs]);
-const stats=useMemo(()=>{const a=bookings.filter(b=>mk(b.date)===vm&&b.status!=="cancelled");const m={};for(const b of a){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]={total:0,"一對一":0,"一對二":0};m[b.coach].total+=h;m[b.coach]["一對一"]+=b.type==="一對一"?h:0;m[b.coach]["一對二"]+=b.type==="一對二"?h:0}return Object.entries(m).sort((a,b)=>b[1].total-a[1].total)},[bookings,vm]);
-const dayStats=useMemo(()=>{const list=bookings.filter(b=>b.date===statsDate&&b.status!=="cancelled");const m={};for(const b of list){const h=calcHours(b.start,b.end);if(!m[b.coach])m[b.coach]=0;m[b.coach]+=h;}return Object.entries(m).sort((a,b)=>b[1]-a[1]);},[bookings,statsDate]);
-const dayStatsTotal=useMemo(()=>dayStats.reduce((acc,[,h])=>acc+h,0),[dayStats]);
-const dayBookings=useMemo(()=>{const list=bookings.filter(b=>b.date===viewDate&&b.status!=="cancelled").sort((a,b)=>a.start.localeCompare(b.start));const totalHours=list.reduce((acc,b)=>acc+calcHours(b.start,b.end),0);const opener=list[0];const closer=list[list.length-1];
-const timeGroups={};for(const b of list){const key=`${b.start}-${b.end}`;if(!timeGroups[key])timeGroups[key]={start:b.start,end:b.end,coaches:[]};timeGroups[key].coaches.push(b);}
-const groupedList=Object.values(timeGroups).sort((a,b)=>a.start.localeCompare(b.start));
-return{list,totalHours,opener,closer,groupedList}},[bookings,viewDate]);
-const coachUsage=useMemo(()=>{const m={};for(const b of bookings){if(b.status==="cancelled")continue;if(b.date>=todayStr())continue;m[b.coach]=(m[b.coach]||0)+calcHours(b.start,b.end);}return m;},[bookings]);
-const getRemainder=(c)=>{const p=plans[c];if(!p||p.type!=="30堂")return null;if(p.manualRemaining!==null&&p.manualRemaining!==undefined){const usedAfterManual=Object.entries(coachUsage).find(([k])=>k===c)?.[1]||0;return p.manualRemaining-usedAfterManual+((plans[c]?.manualRemainingUsed)||0);}return(p.purchased||0)-(coachUsage[c]||0);};
-const getPlanBadge=(c)=>{const p=plans[c];if(!p||!p.type)return null;if(p.type==="30堂")return<span style={{fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:3,background:C.accentBg,color:C.accent,border:`1px solid ${C.accentBdr}`}}>30堂</span>;if(p.type==="單次")return<span style={{fontSize:10,fontWeight:700,padding:"1px 5px",borderRadius:3,background:C.blueBg,color:C.blue,border:`1px solid ${C.blueBdr}`}}>單次</span>;return null;};
-const lowStock=useMemo(()=>coaches.filter(c=>{const r=getRemainder(c);return r!==null&&r<=5&&r>=0;}),[coaches,plans,coachUsage]);
-const ta=filtered.filter(b=>b.status!=="cancelled").reduce((acc,b)=>acc+calcHours(b.start,b.end),0).toFixed(1);
-const tc=filtered.filter(b=>b.status==="cancelled").length;
-const hardDelete=async id=>{if(!window.confirm("確定要永久刪除？"))return;await sync({action:"delete",id});await refresh()};
-const addCoach=async()=>{const name=newCoach.trim();if(!name)return setAddErr("請輸入教練名字");if(coaches.includes(name))return setAddErr("此名字已存在");const n=[...coaches,name];setCoaches(n);setNewCoach("");setAddErr("");await sync({action:"saveCoaches",coaches:n})};
-const removeCoach=async name=>{if(!window.confirm(`確定要刪除「${name}」嗎？`))return;const n=coaches.filter(c=>c!==name);setCoaches(n);await sync({action:"saveCoaches",coaches:n});const p={...plans};delete p[name];setPlans(p);await sync({action:"savePlans",plans:p})};
-const setPlan=async(coach,type)=>{const p={...plans,[coach]:{...plans[coach],type,purchased:type==="30堂"?(plans[coach]?.purchased||30):0,manualRemaining:null}};setPlans(p);await sync({action:"savePlans",plans:p})};
-const addPurchase=async(coach)=>{const p={...plans,[coach]:{...plans[coach],type:"30堂",purchased:(plans[coach]?.purchased||0)+30,manualRemaining:null}};setPlans(p);await sync({action:"savePlans",plans:p})};
-const setManualRemaining=async(coach,val)=>{const p={...plans,[coach]:{...plans[coach],manualRemaining:val===null?null:Number(val)}};setPlans(p);await sync({action:"savePlans",plans:p})};
-const refresh=async()=>{setLoading(true);const d=await fetchAll();setBookings(d.bookings||[]);if(d.coaches&&d.coaches.length>0)setCoaches(d.coaches);if(d.plans&&Object.keys(d.plans).length>0)setPlans(d.plans);setLoading(false)};
-useEffect(()=>{refresh()},[]);
-const isToday=viewDate===todayStr();
-const isStatToday=statsDate===todayStr();
-return<div style={{minHeight:"100vh",background:C.bg,paddingBottom:70}}>
-<div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:10}}>
-<h1 style={{fontFamily:H,fontSize:20,fontWeight:400}}>管理員後台</h1>
-<div style={{display:"flex",gap:8}}>
-<button onClick={refresh} style={{...btn("ghost","sm")}}>{loading?"載入中...":"🔄 更新"}</button>
-<button onClick={onLogout} style={btn("ghost","sm")}>登出</button>
-</div>
-</div>
-<div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex"}}>
-{[{key:"schedule",label:"📅 班表"},{key:"stats",label:"📊 統計"},{key:"coaches",label:"👥 教練"},{key:"plans",label:"💳 方案"}].map(({key,label})=>(
-<button key={key} onClick={()=>setTab(key)} style={{flex:1,background:"none",border:"none",borderBottom:`3px solid ${tab===key?C.accent:"transparent"}`,padding:"12px 4px",cursor:"pointer",fontSize:11,fontWeight:700,color:tab===key?C.accent:C.muted,fontFamily:B,whiteSpace:"nowrap"}}>{label}</button>))}
-</div>
-<div style={{maxWidth:800,margin:"0 auto",padding:"24px 16px",display:"flex",flexDirection:"column",gap:20}}>
-{lowStock.length>0&&<div style={{background:C.redBg,border:`1px solid ${C.redBdr}`,borderRadius:12,padding:"16px 20px"}}>
-<div style={{fontSize:13,fontWeight:700,color:C.red,marginBottom:10}}>⚠️ 以下教練堂數即將用完</div>
-{lowStock.map(c=>{const r=getRemainder(c);return<div key={c} style={{fontSize:13,color:C.red,marginBottom:4}}>• {c}：剩餘 <b>{r?.toFixed(1)}</b> 堂</div>})}
-</div>}
-{tab==="schedule"&&<>
-<div style={{...card,padding:"16px 20px"}}>
-<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-<button onClick={()=>setViewDate(addDays(viewDate,-1))} style={{...btn("ghost","sm"),fontSize:20,padding:"4px 16px"}}>‹</button>
-<div style={{textAlign:"center"}}>
-<div style={{fontSize:16,fontWeight:700,color:C.text}}>{fmt(viewDate)}</div>
-{isToday&&<div style={{fontSize:11,color:C.accent,fontWeight:700}}>今天</div>}
-</div>
-<button onClick={()=>setViewDate(addDays(viewDate,1))} style={{...btn("ghost","sm"),fontSize:20,padding:"4px 16px"}}>›</button>
-</div>
-{!isToday&&<div style={{textAlign:"center",marginTop:10}}>
-<button onClick={()=>setViewDate(todayStr())} style={btn("accent","sm")}>回到今天</button>
-</div>}
-</div>
-{loading?<div style={{...card,textAlign:"center",color:C.muted,padding:"40px"}}>載入中...</div>:
-dayBookings.list.length===0?<div style={{...card,textAlign:"center",color:C.muted,fontSize:13,padding:"40px 20px"}}>這天尚無預約紀錄</div>:
-<div style={card}>
-<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-{dayBookings.opener&&<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.greenBg,color:C.green,border:`1px solid ${C.greenBdr}`}}>🌅 開店：{dayBookings.opener.coach} {dayBookings.opener.start}</span>}
-{dayBookings.closer&&<span style={{fontSize:11,fontWeight:700,padding:"4px 10px",borderRadius:20,background:C.orangeBg,color:C.orange,border:`1px solid ${C.orangeBdr}`}}>🌙 關店：{dayBookings.closer.coach} {dayBookings.closer.end}</span>}
-</div>
-<span style={{fontSize:12,fontWeight:700,color:C.accent}}>共 {dayBookings.totalHours.toFixed(1)} 小時</span>
-</div>
-<div style={{display:"flex",flexDirection:"column",gap:10}}>
-{dayBookings.groupedList.map(group=>(
-<div key={`${group.start}-${group.end}`} style={{background:C.bg,borderRadius:10,border:`1px solid ${C.border}`,overflow:"hidden"}}>
-<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",background:group.coaches.length>=3?C.redBg:group.coaches.length===2?C.accentBg:C.bg,borderBottom:`1px solid ${C.border}`}}>
-<span style={{fontSize:13,fontWeight:700,color:C.text}}>{group.start}–{group.end}</span>
-<span style={{fontSize:12,fontWeight:700,color:group.coaches.length>=3?C.red:group.coaches.length===2?C.accent:C.muted}}>{group.coaches.length} 人</span>
-</div>
-<div style={{padding:"8px 14px",display:"flex",flexWrap:"wrap",gap:8}}>
-{group.coaches.map(b=>(
-<div key={b.id} style={{display:"flex",alignItems:"center",gap:4}}>
-<Badge type={b.type} status={b.status}/>
-<span style={{fontSize:13,fontWeight:700,color:C.text}}>{b.coach}</span>
-{getPlanBadge(b.coach)}
-</div>))}
-</div>
-</div>))}
-</div>
-</div>}
-</>}
-{tab==="stats"&&<>
-<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-{months.length===0?<div style={{fontSize:13,color:C.muted}}>尚無任何紀錄</div>:months.map(m=><button key={m} onClick={()=>setVm(m)} style={{...btn(vm===m?"accent":"ghost","sm"),borderColor:vm===m?C.accent:C.border}}>{ml(m)}</button>)}
-</div>
-<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-{[{label:"有效時數",value:ta,color:C.green,bg:C.greenBg},{label:"取消次數",value:tc,color:C.red,bg:C.redBg},{label:"教練人數",value:stats.length,color:C.blue,bg:C.blueBg}].map(({label,value,color,bg})=><div key={label} style={{...card,background:bg,padding:"16px 20px",border:"none",textAlign:"center"}}><div style={{fontSize:28,fontWeight:700,color}}>{value}</div><div style={{fontSize:11,color,opacity:0.8,marginTop:2}}>{label}</div></div>)}
-</div>
-<div style={card}>
-<h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:16}}>📅 每日明細</h2>
-<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,background:C.bg,borderRadius:10,padding:"12px 16px"}}>
-<button onClick={()=>setStatsDate(addDays(statsDate,-1))} style={{...btn("ghost","sm"),fontSize:20,padding:"4px 14px"}}>‹</button>
-<div style={{textAlign:"center"}}>
-<div style={{fontSize:15,fontWeight:700,color:C.text}}>{fmt(statsDate)}</div>
-{isStatToday&&<div style={{fontSize:11,color:C.accent,fontWeight:700}}>今天</div>}
-</div>
-<button onClick={()=>setStatsDate(addDays(statsDate,1))} style={{...btn("ghost","sm"),fontSize:20,padding:"4px 14px"}}>›</button>
-</div>
-{!isStatToday&&<div style={{textAlign:"center",marginBottom:12}}>
-<button onClick={()=>setStatsDate(todayStr())} style={btn("accent","sm")}>回到今天</button>
-</div>}
-{dayStats.length===0?<div style={{textAlign:"center",color:C.muted,fontSize:13,padding:"20px"}}>這天尚無紀錄</div>:
-<><div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
-{dayStats.map(([coach,hours])=>(
-<div key={coach} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 14px",display:"flex",alignItems:"center",gap:6}}>
-<span style={{fontSize:13,fontWeight:700,color:C.text}}>{coach}</span>
-{getPlanBadge(coach)}
-<span style={{fontSize:13,fontWeight:700,color:C.accent}}>{hours.toFixed(1)}h</span>
-</div>))}
-</div>
-<div style={{fontSize:12,color:C.muted,textAlign:"right"}}>當天合計：<b style={{color:C.accent}}>{dayStatsTotal.toFixed(1)} 小時</b></div>
-</>}
-</div>
-{stats.length>0&&<div style={card}><h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:16}}>📊 {ml(vm)} 總量統計</h2>
-<div style={{display:"flex",flexDirection:"column",gap:8}}>
-{stats.map(([c,s])=><div key={c} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:C.bg,borderRadius:8,border:`1px solid ${C.border}`}}>
-<div style={{display:"flex",alignItems:"center",gap:6,width:120}}><span style={{fontWeight:700,fontSize:14,color:C.text}}>{c}</span>{getPlanBadge(c)}</div>
-<div style={{flex:1}}><div style={{height:8,borderRadius:4,background:C.border,overflow:"hidden"}}><div style={{height:"100%",borderRadius:4,width:`${(s.total/(stats[0]?.[1].total||1))*100}%`,background:`linear-gradient(90deg,${C.accent},#e8893c)`}}/></div></div>
-<div style={{fontSize:13,color:C.muted,minWidth:120,textAlign:"right"}}><span style={{fontWeight:700,color:C.text,fontSize:16}}>{s.total.toFixed(1)}</span><span style={{fontSize:11,marginLeft:6}}>堂</span><span style={{marginLeft:8,fontSize:11}}>(1:1 {s["一對一"].toFixed(1)} / 1:2 {s["一對二"].toFixed(1)})</span></div>
-</div>)}</div></div>}
-<div style={card}>
-<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
-<h2 style={{fontFamily:H,fontSize:16,fontWeight:400}}>預約明細</h2>
-<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-<select value={fc} onChange={e=>setFc(e.target.value)} style={{...inp,width:"auto",fontSize:12,padding:"6px 10px"}}><option value="all">所有教練</option>{coaches.map(c=><option key={c} value={c}>{c}</option>)}</select>
-<select value={fs} onChange={e=>setFs(e.target.value)} style={{...inp,width:"auto",fontSize:12,padding:"6px 10px"}}><option value="all">全部狀態</option><option value="active">有效</option><option value="cancelled">已取消</option></select>
-</div></div>
-{filtered.length===0?<div style={{padding:"40px 20px",textAlign:"center",color:C.muted,fontSize:13}}>這個月尚無符合條件的預約</div>:
-<div style={{display:"flex",flexDirection:"column",gap:8}}>
-{filtered.map(b=><div key={b.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",background:b.status==="cancelled"?C.redBg:C.bg,borderRadius:8,border:`1px solid ${b.status==="cancelled"?C.redBdr:C.border}`,opacity:b.status==="cancelled"?0.7:1}}>
-<div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}><Badge type={b.type} status={b.status}/><div><div style={{fontSize:14,fontWeight:700,color:C.text}}>{b.coach}</div><div style={{fontSize:12,color:C.muted}}>{fmt(b.date)} · {b.start}–{b.end} ({calcHours(b.start,b.end).toFixed(1)}h)</div></div></div>
-<button onClick={()=>hardDelete(b.id)} style={{...btn("ghost","sm"),color:C.red,borderColor:C.redBdr,padding:"4px 8px"}}>🗑</button>
-</div>)}</div>}
-</div></>}
-{tab==="coaches"&&<div style={card}>
-<h2 style={{fontFamily:H,fontSize:16,fontWeight:400,marginBottom:20}}>👥 教練名單管理</h2>
-<div style={{marginBottom:24}}>
-<label style={lbl}>新增教練</label>
-<div style={{display:"flex",gap:10}}>
-<input value={newCoach} onChange={e=>setNewCoach(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCoach()} placeholder="輸入教練名字" style={{...inp,flex:1}}/>
-<button onClick={addCoach} style={btn("accent","md")}>＋ 新增</button>
-</div>
-{addErr&&<div style={{color:C.red,fontSize:12,marginTop:6}}>⚠ {addErr}</div>}
-</div>
-<div style={{display:"flex",flexDirection:"column",gap:8}}>
-{coaches.map(c=>{const p=plans[c];const isPackage=p?.type==="30堂";const r=getRemainder(c);const low=r!==null&&r<=5;
-return<div key={c} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg,border:`1px solid ${low?C.red:C.border}`,borderRadius:8,padding:"10px 14px",gap:8,flexWrap:"wrap"}}>
-<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-<span style={{fontSize:13,fontWeight:700,color:C.text}}>{c}</span>
-{getPlanBadge(c)}
-{low&&<span style={{fontSize:10,fontWeight:700,color:C.red}}>⚠️ 剩{r?.toFixed(1)}堂</span>}
-</div>
-<button onClick={()=>removeCoach(c)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:18}}>×</button>
-</div>})}
-</div>
-<div style={{marginTop:16,fontSize:12,color:C.muted}}>共 {coaches.length} 位教練</div>
-</div>}
-{tab==="plans"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
-<h2 style={{fontFamily:H,fontSize:16,fontWeight:400}}>💳 教練方案管理</h2>
-<div style={{fontSize:12,color:C.muted,background:C.blueBg,border:`1px solid ${C.blueBdr}`,borderRadius:8,padding:"10px 14px"}}>
-💡 堂數計算只含昨天以前已完成的課，今天及未來的預約不計入
-</div>
-{coaches.filter(c=>c!=="單次場租").map(c=>{const p=plans[c];const isPackage=p?.type==="30堂";const r=getRemainder(c);const low=isPackage&&r!==null&&r<=5;
-return<div key={c} style={{...card,border:`1px solid ${low?C.red:C.border}`}}>
-<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
-<span style={{fontSize:14,fontWeight:700,color:C.text}}>{c}</span>
-{low&&<span style={{fontSize:11,fontWeight:700,color:C.red}}>⚠️ 即將用完</span>}
-</div>
-<div style={{display:"flex",gap:8,marginBottom:isPackage?12:0}}>
-<button onClick={()=>setPlan(c,"30堂")} style={{...btn(isPackage?"accent":"ghost","sm"),flex:1,justifyContent:"center"}}>🟠 30堂方案</button>
-<button onClick={()=>setPlan(c,"單次")} style={{...btn(p?.type==="單次"?"accent":"ghost","sm"),flex:1,justifyContent:"center"}}>🔵 單次300</button>
-</div>
-{isPackage&&<div style={{background:C.bg,borderRadius:8,padding:"12px",display:"flex",flexDirection:"column",gap:12}}>
-<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-<div style={{textAlign:"center"}}><div style={{fontSize:12,color:C.muted}}>已購買</div><div style={{fontSize:18,fontWeight:700,color:C.text}}>{p.purchased}堂</div></div>
-<div style={{textAlign:"center"}}><div style={{fontSize:12,color:C.muted}}>已完成</div><div style={{fontSize:18,fontWeight:700,color:C.text}}>{(coachUsage[c]||0).toFixed(1)}堂</div></div>
-<div style={{textAlign:"center"}}><div style={{fontSize:12,color:C.muted}}>剩餘</div><div style={{fontSize:18,fontWeight:700,color:low?C.red:C.green}}>{r?.toFixed(1)}堂</div></div>
-<button onClick={()=>addPurchase(c)} style={btn("green","sm")}>＋ 再買30堂</button>
-</div>
-<div style={{borderTop:`1px solid ${C.border}`,paddingTop:12}}>
-<label style={lbl}>手動設定剩餘堂數</label>
-<div style={{display:"flex",gap:8}}>
-<input type="number" placeholder="輸入剩餘堂數" defaultValue={p.manualRemaining??""} onBlur={e=>setManualRemaining(c,e.target.value===''?null:e.target.value)} style={{...inp,flex:1}}/>
-<button onClick={()=>setManualRemaining(c,null)} style={btn("ghost","sm")}>自動計算</button>
-</div>
-<div style={{fontSize:11,color:C.muted,marginTop:4}}>手動設定後系統仍會繼續扣除之後完成的課堂</div>
-</div>
-</div>}
-</div>})}
-</div>}
-</div></div>}
-function App(){
-const[view,setView]=useState("coach");
-const[coaches,setCoaches]=useState(DEFAULT_COACHES);
-const[auth,setAuth]=useState(false);
-useEffect(()=>{fetchAll().then(d=>{if(d.coaches&&d.coaches.length>0)setCoaches(d.coaches)});},[]);
-return<div>
-<div style={{position:"fixed",bottom:0,left:0,right:0,background:C.surface,borderTop:`1px solid ${C.border}`,display:"flex",zIndex:20}}>
-{[{key:"coach",label:"教練登記"},{key:"adminLogin",label:"管理後台"}].map(({key,label})=>(
-<button key={key} onClick={()=>{if(key==="adminLogin"){auth?setView("admin"):setView("adminLogin")}else setView("coach")}}
-style={{flex:1,background:"none",border:"none",cursor:"pointer",padding:"12px 8px 14px",display:"flex",flexDirection:"column",alignItems:"center",gap:4,color:(view===key||(key==="adminLogin"&&view==="admin"))?C.accent:C.muted,fontFamily:B,fontSize:11,fontWeight:700,borderTop:`2px solid ${(view===key||(key==="adminLogin"&&view==="admin"))?C.accent:"transparent"}`}}>
-<span style={{fontSize:18}}>{key==="coach"?"👤":"📊"}</span>{label}</button>))}
-</div>
-{view==="coach"&&<CoachPage coaches={coaches}/>}
-{view==="adminLogin"&&<AdminLogin onLogin={()=>{setAuth(true);setView("admin")}}/>}
-{view==="admin"&&<AdminDashboard onLogout={()=>{setAuth(false);setView("adminLogin")}}/>}
-</div>}
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
-</script>
-</body>
-</html>
+
+function doGet(e) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // 只抓最近兩個月的預約資料
+    const now = new Date();
+    const thisMonth = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonth = lastMonthDate.getFullYear() + "-" + String(lastMonthDate.getMonth() + 1).padStart(2, "0");
+
+    const sheet = ss.getSheetByName(SHEET_NAME);
+    const rows = sheet.getDataRange().getValues();
+    const bookings = [];
+    for (let i = 1; i < rows.length; i++) {
+      if (!rows[i][0]) continue;
+      const dateStr = String(rows[i][2]);
+      const month = dateStr.slice(0, 7);
+      if (month !== thisMonth && month !== lastMonth) continue;
+      bookings.push({
+        id: String(rows[i][0]),
+        coach: String(rows[i][1]),
+        date: String(rows[i][2]),
+        start: String(rows[i][3]),
+        end: String(rows[i][4]),
+        type: String(rows[i][5]),
+        status: String(rows[i][6]),
+        createdAt: String(rows[i][7]),
+      });
+    }
+
+    // 教練名單
+    let coaches = [];
+    const cs = ss.getSheetByName(COACH_SHEET);
+    if (cs) {
+      const crow = cs.getDataRange().getValues();
+      for (let i = 1; i < crow.length; i++) {
+        if (crow[i][0]) coaches.push(String(crow[i][0]));
+      }
+    }
+
+    // 方案設定
+    let plans = {};
+    const ps = ss.getSheetByName(PLAN_SHEET);
+    if (ps) {
+      const prow = ps.getDataRange().getValues();
+      for (let i = 1; i < prow.length; i++) {
+        if (prow[i][0]) {
+          plans[String(prow[i][0])] = {
+            type: String(prow[i][1]),
+            purchased: Number(prow[i][2]) || 0,
+            manualRemaining: prow[i][3] !== "" ? Number(prow[i][3]) : null,
+          };
+        }
+      }
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ result: "ok", bookings, coaches, plans }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ result: "error", message: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
